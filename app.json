@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Smarty AI",
+    "slug": "smarty-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/illustrations/smarty_logo.png",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/illustrations/smarty_logo.png",
+        "backgroundColor": "#6366F1"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/illustrations/smarty_logo.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-status-bar"
+    ]
+  }
+}

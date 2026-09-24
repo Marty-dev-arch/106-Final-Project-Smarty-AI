@@ -1,0 +1,111 @@
+export const THEME = {
+  colors: {
+    primary: '#4648D4',
+    primaryLight: '#6063EE',
+    primaryDark: '#383AC2',
+    primaryIndigo: '#4648D4',
+    primaryGradient: ['#4648D4', '#6D44F2', '#7C3AED'] as [string, string, string],
+    brandGradient: ['#3D35D1', '#5844E8', '#783CE8'] as [string, string, string],
+    bannerGradient: ['#4648D4', '#7C3AED'] as [string, string],
+    cardGradient: ['#F6F1FF', '#F0EBFF', '#EAE5FF'] as [string, string, string],
+    goldGradient: ['#FFDDB5', '#FFC98A'] as [string, string],
+    
+    background: '#FFFFFF',
+    stageBackground: '#F8F9FE',
+    surface: '#FFFFFF',
+    surfaceAlt: '#F4F1FE',
+    surfaceSubtle: '#EDE9FE',
+    coralAccent: '#FF6E5A',
+    
+    textPrimary: '#111827',
+    textSecondary: '#464554',
+    textMuted: '#6B7280',
+    textLightMuted: '#9CA3AF',
+    textInverse: '#FFFFFF',
+    textBrand: '#4648D4',
+    
+    border: '#E5E7EB',
+    borderLight: '#F3F4F6',
+    borderLavender: '#EDE9FE',
+    
+    success: '#10B981',
+    successLight: '#ECFDF5',
+    error: '#EF4444',
+    errorLight: '#FEF2F2',
+    warning: '#F59E0B',
+    warningLight: '#FFFBEB',
+    info: '#3B82F6',
+  },
+  typography: {
+    h1: {
+      fontSize: 26,
+      fontWeight: '800' as const,
+      letterSpacing: -0.4,
+      color: '#111827',
+    },
+    h2: {
+      fontSize: 20,
+      fontWeight: '800' as const,
+      letterSpacing: -0.3,
+      color: '#111827',
+    },
+    h3: {
+      fontSize: 17,
+      fontWeight: '800' as const,
+      color: '#111827',
+    },
+    body: {
+      fontSize: 14,
+      fontWeight: '500' as const,
+      color: '#374151',
+      lineHeight: 20,
+    },
+    caption: {
+      fontSize: 12,
+      fontWeight: '500' as const,
+      color: '#6B7280',
+    },
+    tag: {
+      fontSize: 11,
+      fontWeight: '800' as const,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase' as const,
+    },
+  },
+  radius: {
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 20,
+    xxl: 26,
+    full: 9999,
+  },
+  spacing: {
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 20,
+    xxl: 24,
+    xxxl: 32,
+  },
+  shadows: {
+    card: {
+      shadowColor: '#000000',
+      shadowOpacity: 0.04,
+      shadowOffset: { width: 0, height: 2 },
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    primaryGlow: {
+      shadowColor: '#4648D4',
+      shadowOpacity: 0.32,
+      shadowOffset: { width: 0, height: 5 },
+      shadowRadius: 12,
+      elevation: 6,
+    },
+  },
+};
+
+export default THEME;
