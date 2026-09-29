@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   ScrollView,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,8 +15,14 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { RootStackParamList } from "../../types/navigation";
 import { useQuiz } from "../../context/QuizContext";
+import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import BottomNav from "../../components/common/BottomNav";
 import TopBar from "../../components/common/TopBar";
+import TabSlideWrapper from "../../components/common/TabSlideWrapper";
+import { AchievementsSkeleton } from "../../components/common/SkeletonLoader";
+import { triggerHaptic } from "../../utils/haptics";
+import { evaluateStreak } from "../../utils/streakHelper";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = Math.min((Math.min(SCREEN_WIDTH, 440) - 40 - 24) / 3, 110);
@@ -91,11 +98,29 @@ const MEDALS_DATA: MedalItem[] = [
 
 export default function Achievements() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { medals } = useQuiz();
+  const { user, refreshUser } = useAuth();
+  const { medals, isLoading, refreshData } = useQuiz();
+  const { colors, isDark } = useTheme();
 
   const [activeTab, setActiveTab] = useState<"Badges" | "Medals" | "Ribbons">("Medals");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const streakInfo = evaluateStreak(user?.streak, user?.lastActiveDate, user?.longestStreak);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    triggerHaptic.light();
+    try {
+      await Promise.all([refreshData(), refreshUser()]);
+    } catch (e) {
+      console.warn("Achievements refresh error:", e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshData, refreshUser]);
 
   const handleOpenMedal = (medal: MedalItem) => {
+    triggerHaptic.medium();
     navigation.navigate("MedalDetails", {
       medalId: medal.id,
       medal: {
@@ -113,16 +138,28 @@ export default function Achievements() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <TopBar title="Achievements" showLogo={true} showActions={true} />
 
+      <TabSlideWrapper>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary, "#783CE8"]}
+          />
+        }
       >
-        <View style={styles.contentWrapper}>
-          {/* Top Hero Trophy Card */}
-          <View style={styles.heroCard}>
+        {isLoading ? (
+          <AchievementsSkeleton />
+        ) : (
+          <View style={styles.contentWrapper}>
+            {/* Top Hero Trophy Card */}
+            <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <LinearGradient
               colors={["#F59E0B", "#D97706", "#92400E"]}
               start={{ x: 0, y: 0 }}
@@ -140,13 +177,13 @@ export default function Achievements() {
                 </View>
                 <Text style={styles.trophyBlueLabel}>Trophy</Text>
               </View>
-              <Text style={styles.heroTitle}>Master Collector</Text>
-              <Text style={styles.heroSubtitle}>5 of 5 Medals unlocked</Text>
+              <Text style={[styles.heroTitle, { color: colors.text }]}>Master Collector</Text>
+              <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>5 of 5 Medals unlocked</Text>
             </View>
           </View>
 
           {/* Capsule Switch Tabs */}
-          <View style={styles.capsuleTabsContainer}>
+          <View style={[styles.capsuleTabsContainer, { backgroundColor: isDark ? "#1E293B" : "#EDE9FE" }]}>
             <TouchableOpacity
               style={[
                 styles.capsuleTab,
@@ -158,6 +195,7 @@ export default function Achievements() {
               <Text
                 style={[
                   styles.capsuleTabText,
+                  { color: colors.textSecondary },
                   activeTab === "Badges" && styles.capsuleTabTextActive,
                 ]}
               >
@@ -176,6 +214,7 @@ export default function Achievements() {
               <Text
                 style={[
                   styles.capsuleTabText,
+                  { color: colors.textSecondary },
                   activeTab === "Medals" && styles.capsuleTabTextActive,
                 ]}
               >
@@ -194,6 +233,7 @@ export default function Achievements() {
               <Text
                 style={[
                   styles.capsuleTabText,
+                  { color: colors.textSecondary },
                   activeTab === "Ribbons" && styles.capsuleTabTextActive,
                 ]}
               >
@@ -203,22 +243,22 @@ export default function Achievements() {
           </View>
 
           {/* Medal Collection Progress Card */}
-          <View style={styles.progressCard}>
+          <View style={[styles.progressCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <View style={styles.progressHeaderRow}>
-              <Text style={styles.progressCardTitle}>Medal Collection Progress</Text>
+              <Text style={[styles.progressCardTitle, { color: colors.text }]}>Medal Collection Progress</Text>
               <View style={styles.progressValueGroup}>
                 <Text style={styles.unlockedFractionText}>5/5 Unlocked</Text>
-                <Text style={styles.progressPercentText}>100%</Text>
+                <Text style={[styles.progressPercentText, { color: colors.text }]}>100%</Text>
               </View>
             </View>
-            <View style={styles.progressBarTrack}>
+            <View style={[styles.progressBarTrack, { backgroundColor: isDark ? "#334155" : "#F3F4F6" }]}>
               <View style={[styles.progressBarFill, { width: "100%" }]} />
             </View>
           </View>
 
           {/* Section: Unlocked (5 of 5) */}
           <View style={styles.unlockedHeaderRow}>
-            <Text style={styles.unlockedSectionTitle}>Unlocked (5 of 5)</Text>
+            <Text style={[styles.unlockedSectionTitle, { color: colors.text }]}>Unlocked (5 of 5)</Text>
             <TouchableOpacity style={styles.filterBtn} activeOpacity={0.7}>
               <Text style={styles.filterText}>Filter</Text>
               <Ionicons name="options-outline" size={14} color="#4338CA" style={{ marginLeft: 4 }} />
@@ -252,7 +292,7 @@ export default function Achievements() {
                 </View>
 
                 {/* Title & Status */}
-                <Text style={styles.medalItemTitle} numberOfLines={1}>
+                <Text style={[styles.medalItemTitle, { color: colors.text }]} numberOfLines={1}>
                   {medal.title}
                 </Text>
                 <Text style={styles.medalItemStatus}>Earned</Text>
@@ -262,23 +302,25 @@ export default function Achievements() {
 
           {/* Category Mastered Card */}
           <TouchableOpacity
-            style={styles.categoryMasteredCard}
+            style={[styles.categoryMasteredCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
             onPress={() => navigation.navigate("QuizHistoryDiagnostics")}
             activeOpacity={0.8}
           >
-            <View style={styles.masteredIconCircle}>
+            <View style={[styles.masteredIconCircle, { backgroundColor: isDark ? "#1E293B" : "#EEF2FF" }]}>
               <Ionicons name="checkmark-circle-outline" size={20} color="#4338CA" />
             </View>
             <View style={styles.categoryMasteredTextCol}>
-              <Text style={styles.categoryMasteredTitle}>Category Mastered</Text>
-              <Text style={styles.categoryMasteredSubtitle}>
+              <Text style={[styles.categoryMasteredTitle, { color: colors.text }]}>Category Mastered</Text>
+              <Text style={[styles.categoryMasteredSubtitle, { color: colors.textSecondary }]}>
                 Category Mastered — 5 of 5 Unlocked
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
+        )}
       </ScrollView>
+      </TabSlideWrapper>
 
       {/* Persistent Bottom Navigation */}
       <BottomNav activeTab="Awards" />

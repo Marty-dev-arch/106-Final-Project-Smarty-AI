@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   ScrollView,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -15,19 +16,38 @@ import { Ionicons } from "@expo/vector-icons";
 import { RootStackParamList } from "../../types/navigation";
 import { useQuiz } from "../../context/QuizContext";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import TopBar from "../../components/common/TopBar";
 import BottomNav from "../../components/common/BottomNav";
+import TabSlideWrapper from "../../components/common/TabSlideWrapper";
+import { MyQuizzesSkeleton } from "../../components/common/SkeletonLoader";
+import { triggerHaptic } from "../../utils/haptics";
 import THEME from "../../config/theme";
 
 export default function MyQuizzes() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { user } = useAuth();
-  const { quizzes, mistakes, startQuiz } = useQuiz();
+  const { user, refreshUser } = useAuth();
+  const { quizzes, mistakes, startQuiz, isLoading, refreshData } = useQuiz();
+  const { colors, isDark } = useTheme();
   const [filter, setFilter] = useState<"all" | "inProgress" | "completed" | "unstarted">("all");
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    triggerHaptic.light();
+    try {
+      await Promise.all([refreshData(), refreshUser()]);
+    } catch (e) {
+      console.warn("MyQuizzes refresh error:", e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshData, refreshUser]);
 
   const handleOpenQuiz = (quizId: string) => {
+    triggerHaptic.medium();
     const q = quizzes.find((item) => item.id === quizId) || quizzes[0];
     if (q) {
       startQuiz(q);
@@ -59,16 +79,29 @@ export default function MyQuizzes() {
   const streakPercent = Math.min(100, Math.round((quizzesDone / Math.max(1, quizzesDone + 2)) * 100));
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <TopBar title="Quizzes" showLogo showActions />
 
+      <TabSlideWrapper>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary, "#783CE8"]}
+          />
+        }
       >
-        {/* Title Header with Search & Filter Icons */}
-        <View style={styles.titleRow}>
-          <Text style={styles.pageTitle}>My quizzes</Text>
+        {isLoading ? (
+          <MyQuizzesSkeleton />
+        ) : (
+          <>
+            {/* Title Header with Search & Filter Icons */}
+            <View style={styles.titleRow}>
+              <Text style={[styles.pageTitle, { color: colors.text }]}>My quizzes</Text>
           <View style={styles.titleIconsRow}>
             <TouchableOpacity
               style={styles.iconBtn}
@@ -78,7 +111,7 @@ export default function MyQuizzes() {
               <Ionicons
                 name={showSearch ? "close" : "search-outline"}
                 size={22}
-                color="#1B1931"
+                color={colors.text}
               />
             </TouchableOpacity>
             <TouchableOpacity
@@ -89,26 +122,26 @@ export default function MyQuizzes() {
                 setFilter(nextFilter);
               }}
             >
-              <Ionicons name="options-outline" size={22} color="#1B1931" />
+              <Ionicons name="options-outline" size={22} color={colors.text} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Optional Search Bar */}
         {showSearch && (
-          <View style={styles.searchBarWrapper}>
-            <Ionicons name="search" size={18} color="#9CA3AF" style={{ marginRight: 8 }} />
+          <View style={[styles.searchBarWrapper, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Ionicons name="search" size={18} color={colors.textMuted} style={{ marginRight: 8 }} />
             <TextInput
-              style={styles.searchBarInput}
+              style={[styles.searchBarInput, { color: colors.text }]}
               placeholder="Search quizzes by title or category..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textMuted}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoFocus
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+                <Ionicons name="close-circle" size={18} color={colors.textMuted} />
               </TouchableOpacity>
             )}
           </View>
@@ -158,8 +191,9 @@ export default function MyQuizzes() {
                 key={item.key}
                 style={[
                   styles.filterPill,
+                  { backgroundColor: isDark ? colors.card : "#F3F4F6", borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 },
                   isSelected && styles.filterPillActive,
-                  item.key === "mistakes" && { borderColor: "#FCA5A5", backgroundColor: "#FEF2F2" },
+                  item.key === "mistakes" && { borderColor: "#FCA5A5", backgroundColor: isDark ? "#3F1818" : "#FEF2F2", borderWidth: 1 },
                 ]}
                 onPress={() => {
                   if (item.key === "mistakes") {
@@ -173,8 +207,9 @@ export default function MyQuizzes() {
                 <Text
                   style={[
                     styles.filterText,
+                    { color: colors.textSecondary },
                     isSelected && styles.filterTextActive,
-                    item.key === "mistakes" && { color: "#DC2626", fontWeight: "700" },
+                    item.key === "mistakes" && { color: "#EF4444", fontWeight: "700" },
                   ]}
                 >
                   {item.label}
@@ -191,57 +226,57 @@ export default function MyQuizzes() {
             return (
               <TouchableOpacity
                 key={quiz.id}
-                style={styles.quizCard}
+                style={[styles.quizCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                 onPress={() => handleOpenQuiz(quiz.id)}
                 activeOpacity={0.88}
               >
                 <View style={styles.cardTopRow}>
-                  <View style={styles.iconBox}>
+                  <View style={[styles.iconBox, isDark && { backgroundColor: "#1E1B4B" }]}>
                     <Ionicons name="book-outline" size={20} color={THEME.colors.primary} />
                   </View>
                   <View style={styles.cardHeaderInfo}>
                     <View style={styles.nameBadgeRow}>
-                      <Text style={styles.quizName} numberOfLines={1}>
+                      <Text style={[styles.quizName, { color: colors.text }]} numberOfLines={1}>
                         {quiz.title}
                       </Text>
                       {hasScore ? (
-                        <View style={styles.scoreBadge}>
+                        <View style={[styles.scoreBadge, isDark && { backgroundColor: "#1E1B4B" }]}>
                           <Text style={styles.scoreBadgeText}>{quiz.bestScore}%</Text>
-                          <Ionicons name="checkmark" size={12} color="#4648D4" style={{ marginLeft: 2 }} />
+                          <Ionicons name="checkmark" size={12} color="#8B5CF6" style={{ marginLeft: 2 }} />
                         </View>
                       ) : (
                         <Text style={styles.newBadgeText}>Ready</Text>
                       )}
                     </View>
-                    <Text style={styles.quizMeta}>
+                    <Text style={[styles.quizMeta, { color: colors.textSecondary }]}>
                       {quiz.category || "General"} • {quiz.questions?.length || quiz.questionsCount || 4} questions
                     </Text>
                   </View>
                 </View>
 
-                <View style={styles.cardDivider} />
+                <View style={[styles.cardDivider, { backgroundColor: colors.border }]} />
                 <View style={styles.cardFooterRow}>
                   <View style={styles.footerLeft}>
                     <Ionicons
                       name={hasScore ? "stats-chart-outline" : "play-circle-outline"}
                       size={14}
-                      color={hasScore ? "#4648D4" : "#6B7280"}
+                      color={hasScore ? "#8B5CF6" : colors.textSecondary}
                       style={{ marginRight: 6 }}
                     />
-                    <Text style={hasScore ? styles.masteredText : styles.completedText}>
+                    <Text style={[hasScore ? styles.masteredText : styles.completedText, { color: hasScore ? "#8B5CF6" : colors.textSecondary }]}>
                       {hasScore ? "Score Mastered" : "Tap to start quiz"}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                 </View>
               </TouchableOpacity>
             );
           })
         ) : (
           <View style={styles.emptyContainer}>
-            <Ionicons name="document-text-outline" size={44} color="#9CA3AF" style={{ marginBottom: 10 }} />
-            <Text style={styles.emptyTitle}>No quizzes found</Text>
-            <Text style={styles.emptySubtitle}>Try changing your filter or create a new quiz!</Text>
+            <Ionicons name="document-text-outline" size={44} color={colors.textMuted} style={{ marginBottom: 10 }} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No quizzes found</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>Try changing your filter or create a new quiz!</Text>
             <TouchableOpacity
               style={styles.createFirstBtn}
               onPress={() => navigation.navigate("UploadQuiz")}
@@ -253,16 +288,16 @@ export default function MyQuizzes() {
         )}
 
         {/* Bottom CTA Card: Generate New Quiz */}
-        <View style={styles.generateCtaCard}>
+        <View style={[styles.generateCtaCard, { backgroundColor: isDark ? colors.card : "#F8FAFC", borderColor: colors.cardBorder, borderWidth: 1 }]}>
           <Image
             source={require("../../../assets/illustrations/smarty_logo.png")}
             style={styles.ctaMascot}
             resizeMode="contain"
           />
           <View style={styles.ctaTextCol}>
-            <Text style={styles.ctaTitle}>Generate New Quiz</Text>
-            <Text style={styles.ctaSubtitle} numberOfLines={1}>
-              Turn notes or topics into a qu...
+            <Text style={[styles.ctaTitle, { color: colors.text }]}>Generate New Quiz</Text>
+            <Text style={[styles.ctaSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+              Turn notes or topics into a quiz in seconds
             </Text>
           </View>
           <TouchableOpacity
@@ -273,7 +308,10 @@ export default function MyQuizzes() {
             <Text style={styles.ctaBtnText}>Create</Text>
           </TouchableOpacity>
         </View>
+        </>
+        )}
       </ScrollView>
+      </TabSlideWrapper>
 
       <BottomNav activeTab="Quizzes" />
     </View>

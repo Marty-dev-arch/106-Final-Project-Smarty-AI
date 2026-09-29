@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   ScrollView,
   Text,
   TouchableOpacity,
   StyleSheet,
+  RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -13,21 +14,44 @@ import { Ionicons } from "@expo/vector-icons";
 import { RootStackParamList } from "../../types/navigation";
 import { useAuth } from "../../context/AuthContext";
 import { useQuiz } from "../../context/QuizContext";
+import { useTheme } from "../../context/ThemeContext";
 import { Quiz } from "../../types/quiz";
 import TopBar from "../../components/common/TopBar";
 import BottomNav from "../../components/common/BottomNav";
 import BlinkingMascot from "../../components/common/BlinkingMascot";
 import TypewriterText from "../../components/common/TypewriterText";
+import TabSlideWrapper from "../../components/common/TabSlideWrapper";
+import { DashboardSkeleton } from "../../components/common/SkeletonLoader";
+import { triggerHaptic } from "../../utils/haptics";
+import { evaluateStreak, getLocalDateString } from "../../utils/streakHelper";
 import THEME from "../../config/theme";
 
 export default function Dashboard() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { user } = useAuth();
-  const { quizzes, startQuiz } = useQuiz();
+  const { user, refreshUser } = useAuth();
+  const { quizzes, startQuiz, isLoading, refreshData } = useQuiz();
+  const { colors, isDark } = useTheme();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const streakInfo = evaluateStreak(user?.streak, user?.lastActiveDate, user?.longestStreak);
+  const isStreakActiveToday = streakInfo.isActiveToday;
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    triggerHaptic.light();
+    try {
+      await Promise.all([refreshData(), refreshUser()]);
+    } catch (e) {
+      console.warn("Refresh error:", e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshData, refreshUser]);
 
   const featuredQuiz = quizzes[0];
 
   const handleStartStudy = (q?: Quiz) => {
+    triggerHaptic.medium();
     const targetQuiz = q || featuredQuiz;
     if (targetQuiz) {
       startQuiz(targetQuiz);
@@ -38,37 +62,53 @@ export default function Dashboard() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <TopBar title="Home" showLogo={true} showActions={true} />
 
+      <TabSlideWrapper>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary, "#783CE8"]}
+          />
+        }
       >
-        {/* Greeting Header */}
-        <Text style={styles.greetingText}>
-          Good Morning, {user?.displayName?.split(" ")[0] || "Marty"}!
-        </Text>
+        {isLoading ? (
+          <DashboardSkeleton />
+        ) : (
+          <>
+            {/* Greeting Header */}
+            <Text style={[styles.greetingText, { color: colors.text }]}>
+              Good Morning, {user?.displayName?.split(" ")[0] || "Marty"}!
+            </Text>
 
-        {/* Companion Speech Bubble Card with Animated Blinking Mascot & Typing Text */}
-        <View style={styles.companionCard}>
-          <BlinkingMascot size={86} style={styles.mascotAvatar} />
-          <View style={styles.speechBubbleWrapper}>
-            <View style={styles.speechPointer} />
-            <View style={styles.speechBubble}>
-              <Text style={styles.speechTag}>SMARTY</Text>
-              <TypewriterText
-                text={"heyhey, how can i help you?\nupload any pptx, pdf, docs\nto start generate for you!"}
-                style={styles.speechMessage}
-                speed={30}
-              />
+            {/* Companion Speech Bubble Card with Animated Blinking Mascot & Typing Text */}
+            <View style={styles.companionCard}>
+              <BlinkingMascot size={86} style={styles.mascotAvatar} />
+              <View style={styles.speechBubbleWrapper}>
+                <View style={[styles.speechPointer, isDark && { borderRightColor: colors.card }]} />
+                <View style={[styles.speechBubble, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                  <Text style={styles.speechTag}>SMARTY</Text>
+                  <TypewriterText
+                    text={"heyhey, how can i help you?\nupload any pptx, pdf, docs\nto start generate for you!"}
+                    style={[styles.speechMessage, { color: colors.textSecondary }]}
+                    speed={30}
+                  />
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
 
-        {/* Primary Action Banner */}
+            {/* Primary Action Banner */}
         <TouchableOpacity
-          onPress={() => navigation.navigate("UploadQuiz")}
+          onPress={() => {
+            triggerHaptic.light();
+            navigation.navigate("UploadQuiz");
+          }}
           activeOpacity={0.9}
           style={styles.uploadBannerWrapper}
         >
@@ -97,44 +137,60 @@ export default function Dashboard() {
         </TouchableOpacity>
 
         {/* 3 Real Metrics Row */}
-        <View style={styles.metricsRow}>
+        <View style={[styles.metricsRow, { backgroundColor: isDark ? colors.card : "transparent", borderRadius: 16, borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
           <TouchableOpacity
             style={styles.metricItem}
             activeOpacity={0.7}
-            onPress={() => navigation.navigate("MyQuizzes")}
+            onPress={() => {
+              triggerHaptic.selection();
+              navigation.navigate("MyQuizzes");
+            }}
           >
-            <Text style={styles.metricNumber}>{user?.quizzesTaken ?? 0}</Text>
-            <Text style={styles.metricLabel}>QUIZZES</Text>
+            <Text style={[styles.metricNumber, { color: colors.text }]}>{user?.quizzesTaken ?? 0}</Text>
+            <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>QUIZZES</Text>
           </TouchableOpacity>
 
-          <View style={styles.metricDivider} />
+          <View style={[styles.metricDivider, { backgroundColor: colors.border }]} />
 
           <TouchableOpacity
             style={styles.metricItem}
             activeOpacity={0.7}
-            onPress={() => navigation.navigate("Performance")}
+            onPress={() => {
+              triggerHaptic.selection();
+              navigation.navigate("Performance");
+            }}
           >
-            <Text style={styles.metricNumber}>
+            <Text style={[styles.metricNumber, { color: colors.text }]}>
               {user?.avgScore !== undefined && user?.avgScore !== null ? `${user.avgScore}%` : "0%"}
             </Text>
-            <Text style={styles.metricLabel}>AVG. SCORE</Text>
+            <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>AVG. SCORE</Text>
           </TouchableOpacity>
 
-          <View style={styles.metricDivider} />
+          <View style={[styles.metricDivider, { backgroundColor: colors.border }]} />
 
           <TouchableOpacity
             style={styles.metricItem}
             activeOpacity={0.7}
-            onPress={() => navigation.navigate("Achievements")}
+            onPress={() => {
+              triggerHaptic.selection();
+              navigation.navigate("Achievements");
+            }}
           >
-            <Text style={styles.metricNumber}>{user?.streak ?? 0}</Text>
-            <Text style={styles.metricLabel}>DAY STREAK</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+              <Text style={[styles.metricNumber, { color: isStreakActiveToday ? "#FF7A00" : colors.text }]}>
+                {streakInfo.currentStreak}
+              </Text>
+              <Text style={{ fontSize: 16, marginLeft: 2 }}>{isStreakActiveToday ? "🔥" : "⚡"}</Text>
+            </View>
+            <Text style={[styles.metricLabel, { color: isStreakActiveToday ? "#FF7A00" : colors.textSecondary }]}>
+              {isStreakActiveToday ? "STREAK ON" : "DAY STREAK"}
+            </Text>
           </TouchableOpacity>
         </View>
 
         {/* Recent Achievements */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Recent achievements</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent achievements</Text>
           <TouchableOpacity
             onPress={() => navigation.navigate("Achievements")}
             activeOpacity={0.7}
@@ -149,40 +205,40 @@ export default function Dashboard() {
           contentContainerStyle={styles.achievementsScroll}
         >
           <TouchableOpacity
-            style={styles.achievementChip}
+            style={[styles.achievementChip, { backgroundColor: isDark ? colors.card : "#F4F1FE", borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}
             activeOpacity={0.8}
             onPress={() => navigation.navigate("Achievements")}
           >
-            <Text style={styles.achievementName}>Week Streak</Text>
-            <Text style={styles.achievementDesc}>
+            <Text style={[styles.achievementName, { color: colors.text }]}>Week Streak</Text>
+            <Text style={[styles.achievementDesc, { color: colors.textSecondary }]}>
               {user?.streak ? `${user.streak} days active` : "Start your streak"}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.achievementChip}
+            style={[styles.achievementChip, { backgroundColor: isDark ? colors.card : "#F4F1FE", borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}
             activeOpacity={0.8}
             onPress={() => navigation.navigate("Achievements")}
           >
-            <Text style={styles.achievementName}>Average Score</Text>
-            <Text style={styles.achievementDesc}>
+            <Text style={[styles.achievementName, { color: colors.text }]}>Average Score</Text>
+            <Text style={[styles.achievementDesc, { color: colors.textSecondary }]}>
               {user?.avgScore ? `${user.avgScore}% overall` : "No scores yet"}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.achievementChip}
+            style={[styles.achievementChip, { backgroundColor: isDark ? colors.card : "#F4F1FE", borderColor: colors.cardBorder, borderWidth: isDark ? 1 : 0 }]}
             activeOpacity={0.8}
             onPress={() => navigation.navigate("Achievements")}
           >
-            <Text style={styles.achievementName}>Knowledge Rank</Text>
-            <Text style={styles.achievementDesc}>{user?.tier || "Novice Scholar"}</Text>
+            <Text style={[styles.achievementName, { color: colors.text }]}>Knowledge Rank</Text>
+            <Text style={[styles.achievementDesc, { color: colors.textSecondary }]}>{user?.tier || "Novice Scholar"}</Text>
           </TouchableOpacity>
         </ScrollView>
 
         {/* Available Quiz to Take (Real Data) */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
             {featuredQuiz ? "Available quiz" : "Start studying"}
           </Text>
           <TouchableOpacity onPress={() => navigation.navigate("MyQuizzes")}>
@@ -192,23 +248,23 @@ export default function Dashboard() {
 
         {featuredQuiz ? (
           <TouchableOpacity
-            style={styles.studyCard}
+            style={[styles.studyCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
             onPress={() => handleStartStudy(featuredQuiz)}
             activeOpacity={0.88}
           >
             <View style={styles.studyCardRow}>
-              <View style={styles.studyIconBox}>
+              <View style={[styles.studyIconBox, isDark && { backgroundColor: "#1E1B4B" }]}>
                 <Ionicons name="book-outline" size={22} color={THEME.colors.primary} />
               </View>
               <View style={styles.studyInfoCol}>
-                <Text style={styles.studyMetaText}>
+                <Text style={[styles.studyMetaText, { color: colors.textSecondary }]}>
                   {(featuredQuiz.category || "BIOLOGY").toUpperCase()} • {featuredQuiz.questions?.length || 4} QUESTIONS
                 </Text>
-                <Text style={styles.studyTitleText} numberOfLines={1}>
+                <Text style={[styles.studyTitleText, { color: colors.text }]} numberOfLines={1}>
                   {featuredQuiz.title}
                 </Text>
                 {/* Real Progress / Score Bar */}
-                <View style={styles.progressBarTrack}>
+                <View style={[styles.progressBarTrack, isDark && { backgroundColor: "#1E293B" }]}>
                   <View
                     style={[
                       styles.progressBarFill,
@@ -217,46 +273,49 @@ export default function Dashboard() {
                   />
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             </View>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={styles.studyCard}
+            style={[styles.studyCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
             onPress={() => navigation.navigate("UploadQuiz")}
             activeOpacity={0.88}
           >
             <View style={styles.studyCardRow}>
-              <View style={styles.studyIconBox}>
+              <View style={[styles.studyIconBox, isDark && { backgroundColor: "#1E1B4B" }]}>
                 <Ionicons name="add-circle-outline" size={24} color={THEME.colors.primary} />
               </View>
               <View style={styles.studyInfoCol}>
-                <Text style={styles.studyMetaText}>GET STARTED</Text>
-                <Text style={styles.studyTitleText}>Create your first quiz now</Text>
-                <Text style={styles.studyMetaText}>Upload a file or choose any topic</Text>
+                <Text style={[styles.studyMetaText, { color: colors.textSecondary }]}>GET STARTED</Text>
+                <Text style={[styles.studyTitleText, { color: colors.text }]}>Create your first quiz now</Text>
+                <Text style={[styles.studyMetaText, { color: colors.textSecondary }]}>Upload a file or choose any topic</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             </View>
           </TouchableOpacity>
         )}
 
         {/* Daily Smart Tip Card */}
         <TouchableOpacity
-          style={styles.tipCard}
+          style={[styles.tipCard, { backgroundColor: isDark ? "#1E1B4B" : "#F6F3FE", borderColor: isDark ? "#312E81" : "#EBE5FE" }]}
           activeOpacity={0.85}
           onPress={() => navigation.navigate("UploadQuiz")}
         >
-          <View style={styles.tipIconBox}>
+          <View style={[styles.tipIconBox, isDark && { backgroundColor: "#2E1065" }]}>
             <Ionicons name="bulb-outline" size={22} color={THEME.colors.primary} />
           </View>
           <View style={styles.tipTextCol}>
             <Text style={styles.tipTag}>DAILY SMART TIP</Text>
-            <Text style={styles.tipBody}>
+            <Text style={[styles.tipBody, { color: isDark ? "#C7D2FE" : "#4B5563" }]}>
               Quizzes generated directly from lecture notes boost memory retention by up to 34%. Tap to upload!
             </Text>
           </View>
         </TouchableOpacity>
+        </>
+        )}
       </ScrollView>
+      </TabSlideWrapper>
 
       <BottomNav activeTab="Home" />
     </View>

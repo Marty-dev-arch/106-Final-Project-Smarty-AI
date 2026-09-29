@@ -7,6 +7,9 @@ import Svg, { Path } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RootStackParamList } from "../../types/navigation";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
+import { useNotifications } from "../../context/NotificationContext";
+import NotificationDropdown from "./NotificationDropdown";
 import THEME from "../../config/theme";
 
 export const BellIcon: React.FC<{ size?: number; color?: string }> = ({
@@ -91,6 +94,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { colors, isDark } = useTheme();
+  const { unreadCount, toggleDropdown } = useNotifications();
 
   const handleBack = () => {
     if (onBack) {
@@ -101,73 +106,92 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          paddingTop: Math.max(insets.top, 12),
-          minHeight: 56 + Math.max(insets.top, 12),
-        },
-      ]}
-    >
-      {/* Left side: Back arrow and/or Original Logo + Title */}
-      <View style={styles.leftContainer}>
-        {showBack && (
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            activeOpacity={0.7}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="arrow-back" size={22} color={THEME.colors.textPrimary} />
-          </TouchableOpacity>
-        )}
-
-        {showLogo && (
-          <Image
-            source={
-              useMascotLogo
-                ? require("../../../assets/illustrations/smarty_companion_mascot.png")
-                : require("../../../assets/illustrations/smarty_logo.png")
-            }
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-        )}
-
-        <Text style={styles.titleText} numberOfLines={1} ellipsizeMode="tail">
-          {title}
-        </Text>
-      </View>
-
-      {/* Right side: Matched Bell Icon + Blue Profile Avatar */}
-      {showActions && (
-        <View style={styles.rightContainer}>
-          {showBell && (
+    <>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.card,
+            borderBottomColor: colors.border,
+            paddingTop: Math.max(insets.top, 12),
+            minHeight: 56 + Math.max(insets.top, 12),
+          },
+        ]}
+      >
+        {/* Left side: Back arrow and/or Original Logo + Title */}
+        <View style={styles.leftContainer}>
+          {showBack && (
             <TouchableOpacity
-              style={styles.iconButton}
+              style={styles.backButton}
+              onPress={handleBack}
               activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              onPress={() => navigation.navigate("Achievements")}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <BellIcon size={24} color="#1F2937" />
+              <Ionicons name="arrow-back" size={22} color={colors.text} />
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            style={styles.profileAvatar}
-            onPress={() => navigation.navigate("ProfileSetiing")}
-            activeOpacity={0.85}
-          >
-            {user?.photoURL ? (
-              <Image source={{ uri: user.photoURL }} style={styles.profileAvatarImage} />
-            ) : (
-              <ProfilePersonIcon size={22} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
+          {showLogo && (
+            <Image
+              source={
+                useMascotLogo
+                  ? require("../../../assets/illustrations/smarty_companion_mascot.png")
+                  : require("../../../assets/illustrations/smarty_logo.png")
+              }
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+          )}
+
+          <Text style={[styles.titleText, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
+            {title}
+          </Text>
         </View>
-      )}
-    </View>
+
+        {/* Right side: Bell Icon with Badge + Profile Avatar */}
+        {showActions && (
+          <View style={styles.rightContainer}>
+            {showBell && (
+              <TouchableOpacity
+                style={styles.iconButton}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                onPress={toggleDropdown}
+              >
+                <BellIcon size={24} color={isDark ? "#94A3B8" : "#1F2937"} />
+                {unreadCount > 0 && (
+                  <View style={styles.bellBadgeDot}>
+                    {unreadCount > 1 && (
+                      <Text style={styles.bellBadgeText}>
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </Text>
+                    )}
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.profileAvatar,
+                { backgroundColor: user?.photoURL ? "transparent" : "#3B46E6" },
+              ]}
+              onPress={() => navigation.navigate("ProfileSetiing")}
+              activeOpacity={0.85}
+            >
+              {user?.photoURL ? (
+                <Image source={{ uri: user.photoURL }} style={styles.profileAvatarImage} resizeMode="cover" />
+              ) : (
+                <ProfilePersonIcon size={22} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* Real-time Notifications Dropdown Modal */}
+      <NotificationDropdown />
+    </>
   );
 };
 
@@ -218,6 +242,26 @@ const styles = StyleSheet.create({
     marginRight: 10,
     justifyContent: "center",
     alignItems: "center",
+    position: "relative",
+  },
+  bellBadgeDot: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    minWidth: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: "#EF4444",
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  bellBadgeText: {
+    fontSize: 8,
+    fontWeight: "900",
+    color: "#FFFFFF",
   },
   profileAvatar: {
     width: 36,

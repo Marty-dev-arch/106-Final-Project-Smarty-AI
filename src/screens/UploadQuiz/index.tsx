@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   PanResponder,
   Image,
+  Platform,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,20 +20,35 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { RootStackParamList } from "../../types/navigation";
 import { useAuth } from "../../context/AuthContext";
 import { useQuiz } from "../../context/QuizContext";
+import { useTheme } from "../../context/ThemeContext";
+import { useNotifications } from "../../context/NotificationContext";
 import { Difficulty, QuestionType } from "../../types/quiz";
 import BottomNav from "../../components/common/BottomNav";
+import TabSlideWrapper from "../../components/common/TabSlideWrapper";
 import { BellIcon, ProfilePersonIcon } from "../../components/common/TopBar";
-import HeadWithGearIcon from "../../components/common/HeadWithGearIcon";
+import NotificationDropdown from "../../components/common/NotificationDropdown";
+import BrainSpinner from "../../components/common/BrainSpinner";
 import THEME from "../../config/theme";
+import { documentExtractor, SlideBlock } from "../../utils/documentExtractor";
+
+interface UploadedFileInfo {
+  name: string;
+  size?: string;
+  content?: string;
+}
 
 export default function UploadQuiz() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
   const { generateQuizWithAI, startQuiz } = useQuiz();
+  const { colors, isDark } = useTheme();
+  const { unreadCount, toggleDropdown } = useNotifications();
 
-  const [title, setTitle] = useState("Cell Biology: Structure & Function");
+  const [title, setTitle] = useState("");
   const [sourceText, setSourceText] = useState("");
-  const [questionCount, setQuestionCount] = useState(20);
+  const [uploadedFile, setUploadedFile] = useState<UploadedFileInfo | null>(null);
+  const [uploadedSlides, setUploadedSlides] = useState<SlideBlock[] | undefined>(undefined);
+  const [questionCount, setQuestionCount] = useState(10);
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [selectedTypes, setSelectedTypes] = useState<QuestionType[]>([
     "multiple_choice",
@@ -75,6 +92,61 @@ export default function UploadQuiz() {
 
   const sliderProgress = Math.max(0, Math.min(1, (questionCount - minQuestions) / (maxQuestions - minQuestions)));
 
+  // Web / Native file picker implementation
+  const handlePickDocument = () => {
+    if (Platform.OS === 'web') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.pdf,.ppt,.pptx,.doc,.docx,.txt,.md';
+      input.onchange = async (e: any) => {
+        const file = e.target?.files?.[0];
+        if (file) {
+          const extractedDoc = await documentExtractor.extractTextFromFile(file);
+          const baseName = extractedDoc.fileName.replace(/\.[^/.]+$/, "");
+          if (!title.trim()) {
+            // Use the first slide title if available, otherwise the filename
+            const derivedTitle =
+              (extractedDoc.slides?.[0]?.title || baseName)
+                .replace(/\b\d+\s*slides\b/gi, '')
+                .trim();
+            setTitle(derivedTitle || baseName);
+          }
+
+          setSourceText(extractedDoc.text);
+          setUploadedSlides(extractedDoc.slides && extractedDoc.slides.length > 0 ? extractedDoc.slides : undefined);
+          setUploadedFile({
+            name: extractedDoc.fileName,
+            size: extractedDoc.size,
+            content: extractedDoc.text,
+          });
+        }
+      };
+      input.click();
+    } else {
+      Alert.alert("Document Picker", "Simulating document selection...", [
+        {
+          text: "Select Sample PDF",
+          onPress: () => {
+            setTitle("Cell Biology & Organelles");
+            setSourceText("Mitochondria generate ATP. Ribosomes synthesize proteins. Golgi modifies proteins.");
+            setUploadedFile({
+              name: "Cell_Biology_Notes.pdf",
+              size: "1.8 MB",
+              content: "Cell biology notes and organelle respiration",
+            });
+          },
+        },
+        { text: "Cancel", style: "cancel" },
+      ]);
+    }
+  };
+
+  const handleRemoveDocument = () => {
+    setUploadedFile(null);
+    setSourceText("");
+    setUploadedSlides(undefined);
+  };
+
   const toggleType = (type: QuestionType) => {
     if (selectedTypes.includes(type)) {
       if (selectedTypes.length > 1) {
@@ -86,11 +158,24 @@ export default function UploadQuiz() {
   };
 
   const handleGenerate = async () => {
+    const hasDocument = Boolean(uploadedFile || sourceText.trim());
+    const hasTopic = Boolean(title.trim());
+
+    if (!hasDocument && !hasTopic) {
+      Alert.alert(
+        "Document or Topic Required",
+        "Please upload a document (PDF, PPT, TXT) or enter a quiz topic title before generating."
+      );
+      return;
+    }
+
     setGenerating(true);
     try {
+      const promptPayload = sourceText.trim() || uploadedFile?.name || title.trim();
       const generated = await generateQuizWithAI({
-        title: title.trim() || "Cell Biology Quiz",
-        topicOrDocumentText: sourceText.trim() || title.trim() || "Cell Biology, Organelles, and Cellular Respiration",
+        title: title.trim() || uploadedFile?.name?.replace(/\.[^/.]+$/, "") || "Custom AI Quiz",
+        topicOrDocumentText: promptPayload,
+        slides: uploadedSlides,
         count: questionCount,
         difficulty,
         questionTypes: selectedTypes,
@@ -98,7 +183,7 @@ export default function UploadQuiz() {
       startQuiz(generated);
       navigation.navigate("QuizTaking", { quizId: generated.id });
     } catch (e: any) {
-      alert("Error generating quiz: " + (e.message || "Please check connection"));
+      Alert.alert("Error", "Failed to generate quiz: " + (e.message || "Please check connection"));
     } finally {
       setGenerating(false);
     }
@@ -121,25 +206,43 @@ export default function UploadQuiz() {
   };
 
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={styles.container}>
+    <SafeAreaView edges={["top", "left", "right"]} style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Brain Spinner Overlay during Generation */}
+      {generating && (
+        <BrainSpinner
+          fullScreen
+          size={84}
+          message="Synthesizing quiz with Gemini AI..."
+        />
+      )}
+
       {/* Top Nav Bar */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Ionicons name="chevron-back" size={24} color={THEME.colors.textPrimary} />
+          <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
 
         <View style={styles.topBarRight}>
           <TouchableOpacity
             style={styles.bellBtn}
             activeOpacity={0.7}
-            onPress={() => navigation.navigate("Achievements")}
+            onPress={toggleDropdown}
           >
-            <BellIcon size={24} color="#1F2937" />
+            <BellIcon size={24} color={colors.text} />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadgeDot}>
+                {unreadCount > 1 && (
+                  <Text style={styles.bellBadgeText}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Text>
+                )}
+              </View>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.avatarBtn}
@@ -155,52 +258,78 @@ export default function UploadQuiz() {
         </View>
       </View>
 
+      <TabSlideWrapper>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Page Title */}
         <View style={styles.titleSection}>
-          <Text style={styles.pageTitle}>Create a Quiz</Text>
-          <Text style={styles.pageSubtitle}>
+          <Text style={[styles.pageTitle, { color: colors.text }]}>Create a Quiz</Text>
+          <Text style={[styles.pageSubtitle, { color: colors.textSecondary }]}>
             Upload source materials or customize prompts for generative synthesis.
           </Text>
         </View>
 
         <View style={styles.contentWrapper}>
-          {/* ─── Source Document ─── */}
+          {/* ─── Source Document Upload ─── */}
           <View style={styles.section}>
             <View style={styles.labelRow}>
-              <Text style={styles.sectionLabel}>Source Document</Text>
-              <Text style={styles.optionalTag}>Optional</Text>
+              <Text style={[styles.sectionLabel, { color: colors.text }]}>Source Document</Text>
+              <Text style={[styles.optionalTag, { color: colors.textMuted }]}>Optional</Text>
             </View>
 
-            <TouchableOpacity style={styles.uploadZone} activeOpacity={0.7}>
-              <View style={styles.uploadIconCircle}>
-                <Ionicons name="cloud-upload-outline" size={28} color={THEME.colors.primary} />
+            {uploadedFile ? (
+              <View style={[styles.uploadedCard, { backgroundColor: isDark ? "#1E293B" : "#F5F3FF", borderColor: isDark ? "#6366F1" : "#6D44F2" }]}>
+                <View style={[styles.fileIconCircle, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
+                  <Ionicons name="document-text" size={24} color="#6D44F2" />
+                </View>
+                <View style={styles.fileInfoCol}>
+                  <Text style={[styles.fileNameText, { color: colors.text }]} numberOfLines={1}>{uploadedFile.name}</Text>
+                  <Text style={styles.fileMetaText}>{uploadedFile.size || "Active Document"}</Text>
+                </View>
+                <TouchableOpacity onPress={handleRemoveDocument} style={styles.removeFileBtn}>
+                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                </TouchableOpacity>
               </View>
-              <Text style={styles.uploadTitle}>Tap to upload a document</Text>
-              <Text style={styles.uploadMeta}>PDF, PPT or PPTX · up to 10MB</Text>
-            </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.uploadZone,
+                  {
+                    backgroundColor: isDark ? "#1E293B" : "#F5F3FF",
+                    borderColor: isDark ? "#6366F1" : "#6D44F2",
+                  },
+                ]}
+                onPress={handlePickDocument}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.uploadIconCircle, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
+                  <Ionicons name="cloud-upload-outline" size={28} color={THEME.colors.primary} />
+                </View>
+                <Text style={[styles.uploadTitle, { color: colors.text }]}>Tap to upload a document</Text>
+                <Text style={[styles.uploadMeta, { color: colors.textSecondary }]}>PDF, PPT, PPTX or TXT · up to 10MB</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* ─── Quiz Title ─── */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Quiz title</Text>
-            <View style={styles.titleInput}>
+            <Text style={[styles.sectionLabel, { color: colors.text }]}>Quiz title or topic</Text>
+            <View style={[styles.titleInput, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               <TextInput
-                style={styles.titleInputText}
+                style={[styles.titleInputText, { color: colors.text }]}
                 value={title}
                 onChangeText={setTitle}
                 placeholder="e.g. Cell Biology: Structure & Function"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={isDark ? "#64748B" : "#9CA3AF"}
               />
             </View>
           </View>
 
-          {/* ─── Number of Questions (Scrollable / Draggable Bar in 20) ─── */}
+          {/* ─── Number of Questions Slider ─── */}
           <View style={styles.section}>
             <View style={styles.questionCountHeader}>
               <View style={styles.questionCountLeft}>
-                <Ionicons name="list-outline" size={20} color={THEME.colors.textPrimary} />
-                <Text style={styles.questionCountLabel}>Number of questions</Text>
+                <Ionicons name="list-outline" size={20} color={colors.text} />
+                <Text style={[styles.questionCountLabel, { color: colors.text }]}>Number of questions</Text>
               </View>
               <Text style={styles.questionCountValue}>{questionCount}</Text>
             </View>
@@ -214,7 +343,7 @@ export default function UploadQuiz() {
               }}
               {...panResponder.panHandlers}
             >
-              <View style={styles.sliderTrack}>
+              <View style={[styles.sliderTrack, { backgroundColor: isDark ? "#334155" : "#E5E7EB" }]}>
                 <LinearGradient
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
@@ -245,6 +374,7 @@ export default function UploadQuiz() {
                   <Text
                     style={[
                       styles.sliderScaleText,
+                      { color: isDark ? "#94A3B8" : "#9CA3AF" },
                       questionCount === val && styles.sliderScaleTextActive,
                     ]}
                   >
@@ -257,7 +387,7 @@ export default function UploadQuiz() {
 
           {/* ─── Difficulty Level ─── */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Difficulty level</Text>
+            <Text style={[styles.sectionLabel, { color: colors.text }]}>Difficulty level</Text>
             <View style={styles.difficultyRow}>
               {(["easy", "medium", "hard"] as Difficulty[]).map((d) => {
                 const isActive = difficulty === d;
@@ -266,6 +396,7 @@ export default function UploadQuiz() {
                     key={d}
                     style={[
                       styles.diffPill,
+                      { backgroundColor: isDark ? "#1E293B" : "#F3F4F6" },
                       isActive && styles.diffPillActive,
                     ]}
                     onPress={() => setDifficulty(d)}
@@ -275,20 +406,21 @@ export default function UploadQuiz() {
                       <MaterialCommunityIcons
                         name="scale-balance"
                         size={18}
-                        color={isActive ? getDifficultyActiveColor(d) : THEME.colors.textSecondary}
+                        color={isActive ? getDifficultyActiveColor(d) : colors.textSecondary}
                         style={styles.diffIcon}
                       />
                     ) : (
                       <Ionicons
                         name={getDifficultyIcon(d) as any}
                         size={18}
-                        color={isActive ? getDifficultyActiveColor(d) : THEME.colors.textSecondary}
+                        color={isActive ? getDifficultyActiveColor(d) : colors.textSecondary}
                         style={styles.diffIcon}
                       />
                     )}
                     <Text
                       style={[
                         styles.diffPillText,
+                        { color: colors.textSecondary },
                         isActive && styles.diffPillTextActive,
                       ]}
                     >
@@ -303,8 +435,8 @@ export default function UploadQuiz() {
           {/* ─── Question Types ─── */}
           <View style={styles.section}>
             <View style={styles.labelRow}>
-              <Text style={styles.sectionLabel}>Question types</Text>
-              <Text style={styles.optionalTag}>Select all that apply</Text>
+              <Text style={[styles.sectionLabel, { color: colors.text }]}>Question types</Text>
+              <Text style={[styles.optionalTag, { color: colors.textMuted }]}>Select all that apply</Text>
             </View>
             <View style={styles.typesRow}>
               {([
@@ -316,17 +448,25 @@ export default function UploadQuiz() {
                 return (
                   <TouchableOpacity
                     key={key}
-                    style={[styles.typeChip, isActive && styles.typeChipActive]}
+                    style={[
+                      styles.typeChip,
+                      { backgroundColor: isDark ? "#1E293B" : "#F3F4F6" },
+                      isActive && styles.typeChipActive,
+                    ]}
                     onPress={() => toggleType(key)}
                     activeOpacity={0.7}
                   >
                     {isActive ? (
                       <Ionicons name="checkmark" size={16} color="#FFFFFF" style={styles.chipIcon} />
                     ) : (
-                      <Ionicons name="add" size={16} color={THEME.colors.textSecondary} style={styles.chipIcon} />
+                      <Ionicons name="add" size={16} color={colors.textSecondary} style={styles.chipIcon} />
                     )}
                     <Text
-                      style={[styles.typeChipText, isActive && styles.typeChipTextActive]}
+                      style={[
+                        styles.typeChipText,
+                        { color: colors.textSecondary },
+                        isActive && styles.typeChipTextActive,
+                      ]}
                     >
                       {label}
                     </Text>
@@ -336,22 +476,21 @@ export default function UploadQuiz() {
             </View>
           </View>
 
-          {/* ─── Info Card ─── */}
-          <View style={styles.infoCard}>
-            <View style={styles.infoIconWrap}>
-              <Ionicons name="bulb-outline" size={20} color={THEME.colors.primary} />
+          {/* ─── Input Helper Hint ─── */}
+          {!uploadedFile && !sourceText.trim() && !title.trim() && (
+            <View style={[styles.hintContainer, { backgroundColor: isDark ? "#1E293B" : "#F3F4F6" }]}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} style={{ marginRight: 6 }} />
+              <Text style={[styles.hintText, { color: colors.textSecondary }]}>Upload a document or enter a topic title above to generate.</Text>
             </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Heath is important</Text>
-              <Text style={styles.infoText}>
-                Questions incorporate conceptual clarity checks, diagram interpretations, and real-world clinical applications.
-              </Text>
-            </View>
-          </View>
+          )}
 
           {/* ─── Generate Button ─── */}
           <TouchableOpacity
-            style={[styles.generateBtn, generating && styles.generateBtnDisabled]}
+            style={[
+              styles.generateBtn,
+              (!uploadedFile && !sourceText.trim() && !title.trim()) && styles.generateBtnDimmed,
+              generating && styles.generateBtnDisabled,
+            ]}
             onPress={handleGenerate}
             disabled={generating}
             activeOpacity={0.85}
@@ -370,15 +509,17 @@ export default function UploadQuiz() {
               ) : (
                 <>
                   <Ionicons name="sparkles" size={20} color="#FFFFFF" />
-                  <Text style={styles.generateText}>Generate quiz</Text>
+                  <Text style={styles.generateText}>Generate Quiz</Text>
                 </>
               )}
             </LinearGradient>
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </TabSlideWrapper>
 
       <BottomNav activeTab="Create" />
+      <NotificationDropdown />
     </SafeAreaView>
   );
 }
@@ -388,8 +529,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-
-  /* ── Top Navigation Bar ── */
   topBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -413,6 +552,26 @@ const styles = StyleSheet.create({
     height: 38,
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
+  },
+  bellBadgeDot: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    minWidth: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: "#EF4444",
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  bellBadgeText: {
+    fontSize: 8,
+    fontWeight: "900",
+    color: "#FFFFFF",
   },
   avatarBtn: {
     width: 36,
@@ -421,10 +580,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#3B46E6",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#3B46E6",
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 5,
     elevation: 3,
     overflow: "hidden",
   },
@@ -433,8 +588,6 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
   },
-
-  /* ── Page Title ── */
   scrollContent: {
     paddingBottom: 24,
   },
@@ -446,94 +599,118 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: "800",
-    color: THEME.colors.textPrimary,
-    letterSpacing: -0.4,
+    color: "#111827",
     marginBottom: 4,
   },
   pageSubtitle: {
     fontSize: 13,
-    color: THEME.colors.textSecondary,
+    color: "#6B7280",
     lineHeight: 18,
   },
-
-  /* ── Content ── */
   contentWrapper: {
     paddingHorizontal: 20,
-    paddingTop: 20,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   labelRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: 8,
   },
   sectionLabel: {
     fontSize: 14,
     fontWeight: "700",
-    color: THEME.colors.textPrimary,
+    color: "#111827",
+    marginBottom: 6,
   },
   optionalTag: {
     fontSize: 12,
-    color: THEME.colors.textMuted,
-    fontWeight: "500",
-    fontStyle: "italic",
+    color: "#9CA3AF",
   },
-
-  /* ── Upload Zone ── */
   uploadZone: {
-    alignItems: "center",
-    justifyContent: "center",
     borderWidth: 2,
-    borderColor: THEME.colors.primary,
+    borderColor: "#6D44F2",
     borderStyle: "dashed",
     borderRadius: 16,
-    paddingVertical: 28,
-    paddingHorizontal: 20,
-    backgroundColor: "#FAFAFF",
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F5F3FF",
   },
   uploadIconCircle: {
-    marginBottom: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    elevation: 2,
   },
   uploadTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: THEME.colors.textPrimary,
-    marginBottom: 4,
+    color: "#111827",
+    marginBottom: 2,
   },
   uploadMeta: {
-    fontSize: 13,
-    color: THEME.colors.textMuted,
+    fontSize: 12,
+    color: "#6B7280",
   },
-
-  /* ── Quiz Title Input ── */
-  titleInput: {
+  uploadedCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F5F3FF",
     borderWidth: 1.5,
-    borderColor: "#E4DFFF",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    height: 54,
-    marginTop: 8,
+    borderColor: "#6D44F2",
+    borderRadius: 16,
+    padding: 14,
+  },
+  fileIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  fileInfoCol: {
+    flex: 1,
+  },
+  fileNameText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  fileMetaText: {
+    fontSize: 12,
+    color: "#6D44F2",
+    marginTop: 2,
+  },
+  removeFileBtn: {
+    padding: 8,
+  },
+  titleInput: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   titleInputText: {
-    flex: 1,
     fontSize: 15,
-    color: THEME.colors.textPrimary,
-    fontWeight: "500",
+    fontWeight: "600",
+    color: "#111827",
   },
-
-  /* ── Number of Questions ── */
   questionCountHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 2,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   questionCountLeft: {
     flexDirection: "row",
@@ -541,26 +718,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   questionCountLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
-    color: THEME.colors.textPrimary,
+    color: "#111827",
   },
   questionCountValue: {
     fontSize: 20,
     fontWeight: "800",
     color: THEME.colors.primary,
   },
-
-  /* ── Draggable Continuous Slider ── */
   sliderContainer: {
-    position: "relative",
-    height: 38,
+    height: 32,
     justifyContent: "center",
-    marginBottom: 8,
+    marginVertical: 6,
   },
   sliderTrack: {
     height: 8,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#E5E7EB",
     borderRadius: 4,
     overflow: "hidden",
   },
@@ -570,103 +744,79 @@ const styles = StyleSheet.create({
   },
   sliderThumb: {
     position: "absolute",
-    top: 3,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#4648D4",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: THEME.colors.primary,
+    marginLeft: -12,
+    top: 4,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: -16,
-    shadowColor: "#4648D4",
-    shadowOpacity: 0.45,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 6,
+    elevation: 4,
   },
   sliderThumbInner: {
-    width: 0,
-    height: 0,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
   },
   sliderScaleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 2,
-    marginTop: 4,
+    marginTop: 6,
   },
   sliderScaleText: {
     fontSize: 12,
-    color: THEME.colors.textMuted,
-    fontWeight: "600",
+    color: "#9CA3AF",
+    fontWeight: "500",
   },
   sliderScaleTextActive: {
-    color: "#4648D4",
-    fontWeight: "800",
+    color: THEME.colors.primary,
+    fontWeight: "700",
   },
-  sliderLabels: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 2,
-  },
-  sliderLabelText: {
-    fontSize: 11,
-    color: THEME.colors.textMuted,
-    fontWeight: "500",
-    fontStyle: "italic",
-  },
-
-  /* ── Difficulty Level ── */
   difficultyRow: {
     flexDirection: "row",
     gap: 10,
-    marginTop: 10,
   },
   diffPill: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 9999,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
   },
   diffPillActive: {
     backgroundColor: THEME.colors.primary,
-    borderColor: THEME.colors.primary,
   },
   diffIcon: {
     marginRight: 6,
   },
   diffPillText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: THEME.colors.textPrimary,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#374151",
   },
   diffPillTextActive: {
     color: "#FFFFFF",
+    fontWeight: "700",
   },
-
-  /* ── Question Type Chips ── */
   typesRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
   },
   typeChip: {
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 9999,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
   },
   typeChipActive: {
     backgroundColor: THEME.colors.primary,
-    borderColor: THEME.colors.primary,
   },
   chipIcon: {
     marginRight: 6,
@@ -674,181 +824,54 @@ const styles = StyleSheet.create({
   typeChipText: {
     fontSize: 13,
     fontWeight: "600",
-    color: THEME.colors.textSecondary,
+    color: "#374151",
   },
   typeChipTextActive: {
     color: "#FFFFFF",
     fontWeight: "700",
   },
-
-  /* ── Info Card ── */
-  infoCard: {
-    flexDirection: "row",
-    backgroundColor: "#FAFAFF",
-    borderWidth: 1,
-    borderColor: "#EAE5FF",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 28,
-    alignItems: "flex-start",
-  },
-  infoIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F0EBFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-    marginTop: 2,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: THEME.colors.textPrimary,
-    marginBottom: 4,
-  },
-  infoText: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: THEME.colors.textSecondary,
-  },
-
-  /* ── Quiz Timer Styles ── */
-  timerHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  timerBadge: {
-    backgroundColor: "#EEF2FF",
-    borderWidth: 1,
-    borderColor: "#C7D2FE",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  timerBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#4338CA",
-  },
-  timerPresetsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 4,
-    marginBottom: 10,
-  },
-  timerChip: {
-    flex: 1,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: "#F8F9FD",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  timerChipActive: {
-    backgroundColor: "#4648D4",
-    borderColor: "#4648D4",
-    shadowColor: "#4648D4",
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  timerChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#4B5563",
-  },
-  timerChipTextActive: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-  },
-  timerStepperCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#F8F9FE",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 14,
-    padding: 6,
-    marginBottom: 8,
-  },
-  stepperBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  stepperBtnDisabled: {
-    opacity: 0.4,
-    backgroundColor: "#F3F4F6",
-  },
-  stepperDisplay: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepperValueText: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#1B1931",
-  },
-  stepperUnitText: {
-    fontSize: 11,
-    fontWeight: "500",
-    color: "#6B7280",
-    marginTop: 1,
-  },
-  timerHintText: {
-    fontSize: 12,
-    color: "#6B7280",
-    lineHeight: 16,
-    paddingHorizontal: 2,
-  },
-
-  /* ── Generate Button ── */
   generateBtn: {
+    marginTop: 10,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: THEME.colors.primary,
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 12,
-    elevation: 6,
-    marginBottom: 16,
+    elevation: 4,
+  },
+  generateBtnDimmed: {
+    opacity: 0.65,
   },
   generateBtnDisabled: {
-    opacity: 0.65,
+    opacity: 0.7,
+  },
+  hintContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+  },
+  hintText: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "500",
   },
   generateGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 17,
+    paddingVertical: 16,
+    gap: 10,
   },
   loadingRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
   },
   generateText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
-    marginLeft: 10,
   },
 });

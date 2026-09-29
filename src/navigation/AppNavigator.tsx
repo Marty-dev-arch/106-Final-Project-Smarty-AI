@@ -1,8 +1,10 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
+import { useAuth } from "../context/AuthContext";
+import BrainSpinner from "../components/common/BrainSpinner";
 
-// Import all 19 screens
+// Import all screens
 import Welcome from "../screens/Welcome";
 import SignIn from "../screens/SignIn";
 import SignUp from "../screens/SignUp";
@@ -25,15 +27,27 @@ import ProfileSetiing from "../screens/ProfileSetiing";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// Tab screens: navigator animation must be NONE so TabSlideWrapper owns the transition
+const TAB_ANIMATION = { animation: "none" } as const;
+
 export const AppNavigator: React.FC = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <BrainSpinner fullScreen size={72} message="Restoring session..." />;
+  }
+
+  const initialRoute = user && user.email ? "Dashboard" : "MainOnboard1";
+
   return (
     <Stack.Navigator
-      initialRouteName="MainOnboard1"
+      initialRouteName={initialRoute}
       screenOptions={{
         headerShown: false,
-        animation: "fade_from_bottom",
+        animation: "fade_from_bottom", // default for non-tab screens
       }}
     >
+      {/* ── Onboarding & Auth (keep default animation) ── */}
       <Stack.Screen name="Welcome" component={Welcome} />
       <Stack.Screen name="SignIn" component={SignIn} />
       <Stack.Screen name="SignUp" component={SignUp} />
@@ -41,18 +55,22 @@ export const AppNavigator: React.FC = () => {
       <Stack.Screen name="MainOnboard2" component={MainOnboard2} />
       <Stack.Screen name="MainOnboard3" component={MainOnboard3} />
       <Stack.Screen name="MainOnboard4" component={MainOnboard4} />
-      <Stack.Screen name="Dashboard" component={Dashboard} />
-      <Stack.Screen name="UploadQuiz" component={UploadQuiz} />
-      <Stack.Screen name="QuizTaking" component={QuizTaking} />
-      <Stack.Screen name="QuizSummary" component={QuizSummary} />
-      <Stack.Screen name="Results" component={Results} />
+
+      {/* ── Tab screens: NO navigator animation — TabSlideWrapper owns it ── */}
+      <Stack.Screen name="Dashboard"   component={Dashboard}   options={TAB_ANIMATION} />
+      <Stack.Screen name="MyQuizzes"   component={MyQuizzes}   options={TAB_ANIMATION} />
+      <Stack.Screen name="UploadQuiz"  component={UploadQuiz}  options={TAB_ANIMATION} />
+      <Stack.Screen name="Achievements" component={Achievements} options={TAB_ANIMATION} />
+      <Stack.Screen name="Performance" component={Performance}  options={TAB_ANIMATION} />
+
+      {/* ── Flow screens (keep default animation) ── */}
+      <Stack.Screen name="QuizTaking"             component={QuizTaking} />
+      <Stack.Screen name="QuizSummary"            component={QuizSummary} />
+      <Stack.Screen name="Results"                component={Results} />
       <Stack.Screen name="QuizHistoryDiagnostics" component={QuizHistoryDiagnostics} />
-      <Stack.Screen name="MistakeBank" component={MistakeBank} />
-      <Stack.Screen name="MyQuizzes" component={MyQuizzes} />
-      <Stack.Screen name="Achievements" component={Achievements} />
-      <Stack.Screen name="MedalDetails" component={MedalDetails} />
-      <Stack.Screen name="Performance" component={Performance} />
-      <Stack.Screen name="ProfileSetiing" component={ProfileSetiing} />
+      <Stack.Screen name="MistakeBank"            component={MistakeBank} />
+      <Stack.Screen name="MedalDetails"           component={MedalDetails} />
+      <Stack.Screen name="ProfileSetiing"         component={ProfileSetiing}         options={{ animation: 'slide_from_right' }} />
     </Stack.Navigator>
   );
 };

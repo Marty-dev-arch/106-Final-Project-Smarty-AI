@@ -3,28 +3,37 @@ import { View, StyleSheet, Platform } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { QuizProvider } from "./src/context/QuizContext";
+import { NotificationProvider } from "./src/context/NotificationContext";
+import { ToastProvider } from "./src/context/ToastContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 
-export default function App() {
+function AppMain() {
+  const { isDark, colors } = useTheme();
+
   const content = (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
+      <StatusBar style={isDark ? "light" : "dark"} />
       <AuthProvider>
-        <QuizProvider>
-          <NavigationContainer>
-            <AppNavigator />
-          </NavigationContainer>
-        </QuizProvider>
+        <NotificationProvider>
+          <QuizProvider>
+            <ToastProvider>
+              <NavigationContainer>
+                <AppNavigator />
+              </NavigationContainer>
+            </ToastProvider>
+          </QuizProvider>
+        </NotificationProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
 
   if (Platform.OS === "web") {
     return (
-      <View style={styles.webContainer}>
-        <View style={styles.webFrame}>
+      <View style={[styles.webContainer, { backgroundColor: isDark ? "#050811" : "#EEF2F6" }]}>
+        <View style={[styles.webFrame, { backgroundColor: colors.background }]}>
           {content}
         </View>
       </View>
@@ -32,6 +41,14 @@ export default function App() {
   }
 
   return content;
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppMain />
+    </ThemeProvider>
+  );
 }
 
 const styles = StyleSheet.create({

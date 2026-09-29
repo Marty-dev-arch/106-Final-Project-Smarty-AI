@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   ScrollView,
   Text,
   TouchableOpacity,
   StyleSheet,
+  RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -14,15 +15,33 @@ import Svg, { Path, Defs, LinearGradient as SvgGradient, Stop } from "react-nati
 import { RootStackParamList } from "../../types/navigation";
 import { useAuth } from "../../context/AuthContext";
 import { useQuiz } from "../../context/QuizContext";
+import { useTheme } from "../../context/ThemeContext";
 import TopBar from "../../components/common/TopBar";
 import BottomNav from "../../components/common/BottomNav";
+import TabSlideWrapper from "../../components/common/TabSlideWrapper";
+import { PerformanceSkeleton } from "../../components/common/SkeletonLoader";
+import { triggerHaptic } from "../../utils/haptics";
 import THEME from "../../config/theme";
 
 export default function Performance() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { user } = useAuth();
-  const { quizzes } = useQuiz();
+  const { user, refreshUser } = useAuth();
+  const { quizzes, isLoading, refreshData } = useQuiz();
+  const { colors, isDark } = useTheme();
   const [period, setPeriod] = useState<"month" | "quarter" | "all">("month");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    triggerHaptic.light();
+    try {
+      await Promise.all([refreshData(), refreshUser()]);
+    } catch (e) {
+      console.warn("Performance refresh error:", e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshData, refreshUser]);
 
   const avgScore = user?.avgScore ?? 0;
   const quizzesCount = user?.quizzesTaken ?? 0;
@@ -30,12 +49,28 @@ export default function Performance() {
   const estimatedCorrect = Math.round((estimatedQuestions * avgScore) / 100);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <TopBar title="Performance" showLogo showActions />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Period Selector Tabs */}
-        <View style={styles.periodTabsContainer}>
+      <TabSlideWrapper>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary, "#783CE8"]}
+          />
+        }
+      >
+        {isLoading ? (
+          <PerformanceSkeleton />
+        ) : (
+          <>
+            {/* Period Selector Tabs */}
+            <View style={[styles.periodTabsContainer, { backgroundColor: isDark ? "#1E293B" : "#F3F4F6" }]}>
           {[
             { key: "month", label: "This Month" },
             { key: "quarter", label: "Quarter" },
@@ -45,11 +80,20 @@ export default function Performance() {
             return (
               <TouchableOpacity
                 key={item.key}
-                style={[styles.periodTab, isSelected && styles.periodTabActive]}
+                style={[
+                  styles.periodTab,
+                  isSelected && [styles.periodTabActive, { backgroundColor: colors.card }],
+                ]}
                 onPress={() => setPeriod(item.key as any)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.periodTabText, isSelected && styles.periodTabTextActive]}>
+                <Text
+                  style={[
+                    styles.periodTabText,
+                    { color: colors.textSecondary },
+                    isSelected && [styles.periodTabTextActive, { color: colors.text }],
+                  ]}
+                >
                   {item.label}
                 </Text>
               </TouchableOpacity>
@@ -58,7 +102,7 @@ export default function Performance() {
         </View>
 
         {/* Overall Score Section */}
-        <View style={styles.overallScoreCard}>
+        <View style={[styles.overallScoreCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <View style={styles.scoreHeaderRow}>
             <View style={styles.scoreTagRow}>
               <Ionicons name="sparkles" size={16} color="#4648D4" style={{ marginRight: 6 }} />
@@ -73,11 +117,11 @@ export default function Performance() {
           </View>
 
           <View style={styles.scoreValueRow}>
-            <Text style={styles.bigScoreText}>{avgScore}%</Text>
-            <Text style={styles.scoreDenominator}> / 100</Text>
+            <Text style={[styles.bigScoreText, { color: colors.text }]}>{avgScore}%</Text>
+            <Text style={[styles.scoreDenominator, { color: colors.textMuted }]}> / 100</Text>
           </View>
 
-          <Text style={styles.scoreSummaryText}>
+          <Text style={[styles.scoreSummaryText, { color: colors.textSecondary }]}>
             {quizzesCount > 0
               ? `Calculated from ${quizzesCount} quizzes taken across all subject modules.`
               : "Take your first quiz to generate comprehensive mastery insights."}
@@ -88,8 +132,8 @@ export default function Performance() {
             <Svg width="100%" height={90} viewBox="0 0 340 90" fill="none">
               <Defs>
                 <SvgGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor="#4648D4" stopOpacity="0.25" />
-                  <Stop offset="1" stopColor="#4648D4" stopOpacity="0.0" />
+                  <Stop offset="0" stopColor="#4648D4" stopOpacity={isDark ? 0.45 : 0.25} />
+                  <Stop offset="1" stopColor="#4648D4" stopOpacity={0.0} />
                 </SvgGradient>
               </Defs>
               {/* Area Fill */}
@@ -100,40 +144,40 @@ export default function Performance() {
               {/* Stroke Line */}
               <Path
                 d="M 10 65 Q 60 55 100 60 T 180 50 T 260 45 T 320 25"
-                stroke="#4648D4"
+                stroke="#6366F1"
                 strokeWidth={3}
                 fill="none"
               />
               {/* Peak Point */}
               <Path
                 d="M 320 25 m -4, 0 a 4,4 0 1,0 8,0 a 4,4 0 1,0 -8,0"
-                fill="#4648D4"
+                fill="#6366F1"
               />
             </Svg>
           </View>
 
           {/* 3 Metrics Row */}
-          <View style={styles.metricsRow}>
+          <View style={[styles.metricsRow, { borderTopColor: colors.cardBorder }]}>
             <View style={styles.metricItem}>
-              <Text style={styles.metricNumber}>{quizzesCount}</Text>
-              <Text style={styles.metricLabel}>Quizzes</Text>
+              <Text style={[styles.metricNumber, { color: colors.text }]}>{quizzesCount}</Text>
+              <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Quizzes</Text>
             </View>
-            <View style={styles.metricDivider} />
+            <View style={[styles.metricDivider, { backgroundColor: colors.cardBorder }]} />
             <View style={styles.metricItem}>
-              <Text style={styles.metricNumber}>{estimatedQuestions}</Text>
-              <Text style={styles.metricLabel}>Questions</Text>
+              <Text style={[styles.metricNumber, { color: colors.text }]}>{estimatedQuestions}</Text>
+              <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Questions</Text>
             </View>
-            <View style={styles.metricDivider} />
+            <View style={[styles.metricDivider, { backgroundColor: colors.cardBorder }]} />
             <View style={styles.metricItem}>
               <Text style={styles.metricNumberGreen}>{estimatedCorrect}</Text>
-              <Text style={styles.metricLabel}>Correct</Text>
+              <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Correct</Text>
             </View>
           </View>
         </View>
 
         {/* Subject Mastery Section */}
         <View style={styles.masteryHeaderRow}>
-          <Text style={styles.masteryTitle}>Subject mastery</Text>
+          <Text style={[styles.masteryTitle, { color: colors.text }]}>Subject mastery</Text>
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={() => navigation.navigate("QuizHistoryDiagnostics")}
@@ -141,75 +185,58 @@ export default function Performance() {
             <Text style={styles.detailsText}>Details</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.masterySubtitle}>mastery index computed by Gemini AI</Text>
+        <Text style={[styles.masterySubtitle, { color: colors.textSecondary }]}>mastery index computed by Gemini AI</Text>
 
-        {/* Subject 1: Biology */}
-        <View style={styles.subjectCard}>
-          <View style={styles.subjectTopRow}>
-            <View style={styles.subjectIconBox}>
-              <Ionicons name="image-outline" size={20} color={THEME.colors.primary} />
-            </View>
-            <View style={styles.subjectInfoCol}>
-              <Text style={styles.subjectName}>Biology</Text>
-              <Text style={styles.subjectStatusGreen}>Good Mastery</Text>
-            </View>
-            <Text style={styles.percentGreen}>94%</Text>
+        {quizzes.length === 0 ? (
+          <View style={[styles.emptyMasteryCard, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderColor: colors.cardBorder }]}>
+            <Ionicons name="analytics-outline" size={32} color={colors.textMuted} style={{ marginBottom: 8 }} />
+            <Text style={[styles.emptyMasteryTitle, { color: colors.text }]}>No Subject Data Yet</Text>
+            <Text style={[styles.emptyMasterySubtitle, { color: colors.textSecondary }]}>
+              Take or generate a quiz to start tracking your subject mastery scores.
+            </Text>
           </View>
-          <View style={styles.subjectTrack}>
-            <View style={[styles.subjectFillGreen, { width: "94%" }]} />
-          </View>
-        </View>
+        ) : (
+          quizzes.map((q) => {
+            const scorePercent = q.bestScore ?? 0;
+            const categoryName = q.category || q.title;
+            
+            let statusText = "Need Review";
+            let statusColor = "#EF4444";
+            let trackFillColor = "#EF4444";
 
-        {/* Subject 2: Spanish */}
-        <View style={styles.subjectCard}>
-          <View style={styles.subjectTopRow}>
-            <View style={styles.subjectIconBox}>
-              <Ionicons name="image-outline" size={20} color={THEME.colors.primary} />
-            </View>
-            <View style={styles.subjectInfoCol}>
-              <Text style={styles.subjectName}>Spanish</Text>
-              <Text style={styles.subjectStatusBlue}>Perfect Fluency</Text>
-            </View>
-            <Text style={styles.percentBlue}>78%</Text>
-          </View>
-          <View style={styles.subjectTrack}>
-            <View style={[styles.subjectFillBlue, { width: "78%" }]} />
-          </View>
-        </View>
+            if (scorePercent >= 85) {
+              statusText = "Excellent Mastery";
+              statusColor = "#10B981";
+              trackFillColor = "#10B981";
+            } else if (scorePercent >= 70) {
+              statusText = "Good Mastery";
+              statusColor = isDark ? "#818CF8" : "#6D44F2";
+              trackFillColor = isDark ? "#818CF8" : "#6D44F2";
+            } else if (scorePercent >= 50) {
+              statusText = "Consistent Progress";
+              statusColor = "#F59E0B";
+              trackFillColor = "#F59E0B";
+            }
 
-        {/* Subject 3: History */}
-        <View style={styles.subjectCard}>
-          <View style={styles.subjectTopRow}>
-            <View style={styles.subjectIconBox}>
-              <Ionicons name="image-outline" size={20} color={THEME.colors.primary} />
-            </View>
-            <View style={styles.subjectInfoCol}>
-              <Text style={styles.subjectName}>History</Text>
-              <Text style={styles.subjectStatusOrange}>Consistent Progress</Text>
-            </View>
-            <Text style={styles.percentOrange}>71%</Text>
-          </View>
-          <View style={styles.subjectTrack}>
-            <View style={[styles.subjectFillOrange, { width: "71%" }]} />
-          </View>
-        </View>
-
-        {/* Subject 4: Organic Chemistry */}
-        <View style={styles.subjectCard}>
-          <View style={styles.subjectTopRow}>
-            <View style={styles.subjectIconBox}>
-              <Ionicons name="image-outline" size={20} color={THEME.colors.primary} />
-            </View>
-            <View style={styles.subjectInfoCol}>
-              <Text style={styles.subjectName}>Organic Chemistry</Text>
-              <Text style={styles.subjectStatusRed}>Need to Review</Text>
-            </View>
-            <Text style={styles.percentRed}>61%</Text>
-          </View>
-          <View style={styles.subjectTrack}>
-            <View style={[styles.subjectFillRed, { width: "61%" }]} />
-          </View>
-        </View>
+            return (
+              <View key={q.id} style={[styles.subjectCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                <View style={styles.subjectTopRow}>
+                  <View style={[styles.subjectIconBox, { backgroundColor: isDark ? "#312E81" : "#EDE9FE" }]}>
+                    <Ionicons name="book-outline" size={18} color={isDark ? "#818CF8" : THEME.colors.primary} />
+                  </View>
+                  <View style={styles.subjectInfoCol}>
+                    <Text style={[styles.subjectName, { color: colors.text }]} numberOfLines={1}>{categoryName}</Text>
+                    <Text style={[styles.subjectStatus, { color: statusColor }]}>{statusText}</Text>
+                  </View>
+                  <Text style={[styles.percentText, { color: statusColor }]}>{scorePercent}%</Text>
+                </View>
+                <View style={[styles.subjectTrack, { backgroundColor: isDark ? "#334155" : "#EDE9FE" }]}>
+                  <View style={[styles.subjectFill, { width: `${Math.min(100, Math.max(5, scorePercent))}%`, backgroundColor: trackFillColor }]} />
+                </View>
+              </View>
+            );
+          })
+        )}
 
         {/* AI Study Drill Card */}
         <View style={styles.drillWrapper}>
@@ -233,7 +260,10 @@ export default function Performance() {
             </TouchableOpacity>
           </LinearGradient>
         </View>
+        </>
+        )}
       </ScrollView>
+      </TabSlideWrapper>
 
       <BottomNav activeTab="Performance" />
     </View>
@@ -476,12 +506,47 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#EF4444",
   },
+  percentText: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  subjectStatus: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  emptyMasteryCard: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderStyle: "dashed",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  emptyMasteryTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 4,
+  },
+  emptyMasterySubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 18,
+  },
   subjectTrack: {
     width: "100%",
     height: 6,
     backgroundColor: "#EDE9FE",
     borderRadius: 3,
     overflow: "hidden",
+  },
+  subjectFill: {
+    height: "100%",
+    borderRadius: 3,
   },
   subjectFillGreen: {
     height: "100%",

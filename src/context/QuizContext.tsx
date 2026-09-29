@@ -3,6 +3,8 @@ import { Quiz, Question, QuizAttempt, MistakeItem, Medal, Difficulty, QuestionTy
 import { quizService } from '../services/quizService';
 import { geminiService } from '../services/geminiService';
 import { useAuth } from './AuthContext';
+import { useNotifications } from './NotificationContext';
+import { SlideBlock } from '../utils/documentExtractor';
 
 interface QuizContextType {
   quizzes: Quiz[];
@@ -20,6 +22,7 @@ interface QuizContextType {
   finishQuiz: (timeSpentSeconds?: number) => Promise<QuizAttempt | null>;
   generateQuizWithAI: (params: {
     topicOrDocumentText: string;
+    slides?: SlideBlock[];
     count: number;
     difficulty: Difficulty;
     questionTypes: QuestionType[];
@@ -33,7 +36,8 @@ interface QuizContextType {
 const QuizContext = createContext<QuizContextType | undefined>(undefined);
 
 export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { refreshUser } = useAuth();
+  const { refreshUser, user } = useAuth();
+  const { sendNotification } = useNotifications();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
@@ -42,6 +46,11 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [mistakes, setMistakes] = useState<MistakeItem[]>([]);
   const [medals, setMedals] = useState<Medal[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Keep quizService UID in sync with auth so Firestore writes are user-scoped
+  React.useEffect(() => {
+    quizService.currentUid = user?.uid;
+  }, [user?.uid]);
 
   useEffect(() => {
     refreshData();
@@ -133,11 +142,20 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await refreshUser();
     await refreshData();
 
+    // Send realtime notification
+    sendNotification({
+      title: 'Quiz Completed! 🎯',
+      message: `You scored ${percentage}% on "${activeQuiz.title}" (+${earnedXP} XP)`,
+      type: 'quiz_completed',
+      actionScreen: 'Performance',
+    }).catch(() => {});
+
     return attempt;
   };
 
   const generateQuizWithAI = async (params: {
     topicOrDocumentText: string;
+    slides?: SlideBlock[];
     count: number;
     difficulty: Difficulty;
     questionTypes: QuestionType[];
@@ -149,6 +167,15 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const newQuiz = await geminiService.generateQuiz(params);
       await quizService.saveQuiz(newQuiz);
       await refreshData();
+
+      // Send realtime notification
+      sendNotification({
+        title: 'New Quiz Ready! 🤖',
+        message: `"${newQuiz.title}" generated with ${newQuiz.questions.length} questions.`,
+        type: 'system',
+        actionScreen: 'MyQuizzes',
+      }).catch(() => {});
+
       return newQuiz;
     } finally {
       setIsLoading(false);

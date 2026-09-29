@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   ScrollView,
@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -16,6 +16,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { RootStackParamList } from "../../types/navigation";
 import { useQuiz } from "../../context/QuizContext";
 import TopBar from "../../components/common/TopBar";
+import ExportModal from "../../components/common/ExportModal";
+import { triggerHaptic } from "../../utils/haptics";
 import THEME from "../../config/theme";
 
 export default function QuizTaking() {
@@ -36,6 +38,7 @@ export default function QuizTaking() {
 
   const [finishing, setFinishing] = useState(false);
   const [timeSpent, setTimeSpent] = useState(0);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Handle route params: specific quizId or isMistakePractice
   useEffect(() => {
@@ -50,9 +53,9 @@ export default function QuizTaking() {
     }
   }, [route.params?.quizId, route.params?.isMistakePractice]);
 
-  // If no active quiz, fallback to first quiz in list
+  // Determine active quiz (no mock fallbacks)
   const targetedQuizId = route.params?.quizId;
-  const quiz = activeQuiz || (targetedQuizId ? quizzes.find((q) => q.id === targetedQuizId) : undefined) || quizzes[0];
+  const quiz = activeQuiz || (targetedQuizId ? quizzes.find((q) => q.id === targetedQuizId) : undefined);
 
   // Track quiet elapsed time spent
   useEffect(() => {
@@ -66,27 +69,30 @@ export default function QuizTaking() {
     return () => clearInterval(timer);
   }, [quiz?.id]);
 
-  const handleExitConfirm = () => {
-    Alert.alert("Leave Quiz?", "Your current progress will be lost if you leave now.", [
-      { text: "Keep Going", style: "cancel" },
-      {
-        text: "Leave",
-        style: "destructive",
-        onPress: () => navigation.navigate("Dashboard"),
-      },
-    ]);
+  const handleGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("Dashboard");
+    }
   };
 
   if (!quiz || !quiz.questions || quiz.questions.length === 0) {
     return (
       <View style={styles.container}>
-        <TopBar title="Quiz Session" showBack onBack={() => navigation.navigate("Dashboard")} />
+        <TopBar title="Quiz Session" showBack onBack={handleGoBack} showLogo showActions />
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No questions available in this quiz.</Text>
+          <Ionicons name="help-circle-outline" size={48} color="#94A3B8" style={{ marginBottom: 12 }} />
+          <Text style={styles.emptyTitle}>No Active Quiz Session</Text>
+          <Text style={styles.emptySubtitle}>
+            Please select a quiz from your library or upload a document to generate a new quiz.
+          </Text>
           <TouchableOpacity
             style={styles.backHomeButton}
-            onPress={() => navigation.navigate("Dashboard")}
+            onPress={handleGoBack}
+            activeOpacity={0.85}
           >
+            <Ionicons name="arrow-back" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
             <Text style={styles.backHomeText}>Return to Dashboard</Text>
           </TouchableOpacity>
         </View>
@@ -104,6 +110,7 @@ export default function QuizTaking() {
     if (isLastQuestion) {
       if (finishing) return;
       setFinishing(true);
+      triggerHaptic.success();
       try {
         await finishQuiz(timeSpent);
         navigation.navigate("Results");
@@ -111,17 +118,18 @@ export default function QuizTaking() {
         setFinishing(false);
       }
     } else {
+      triggerHaptic.light();
       nextQuestion();
     }
   };
 
   return (
     <View style={styles.container}>
-      {/* Standard TopBar */}
+      {/* TopBar with working back navigation */}
       <TopBar
         title="Active Quiz Session"
         showBack
-        onBack={handleExitConfirm}
+        onBack={handleGoBack}
         showLogo
         showActions
       />
@@ -131,7 +139,10 @@ export default function QuizTaking() {
         <View style={styles.subBarRow}>
           <TouchableOpacity
             style={styles.circleNavBtn}
-            onPress={prevQuestion}
+            onPress={() => {
+              triggerHaptic.light();
+              prevQuestion();
+            }}
             disabled={currentQuestionIndex === 0}
             activeOpacity={0.7}
           >
@@ -153,7 +164,7 @@ export default function QuizTaking() {
 
           <TouchableOpacity
             style={styles.circleNavBtn}
-            onPress={handleExitConfirm}
+            onPress={handleGoBack}
             activeOpacity={0.7}
           >
             <Ionicons name="close" size={18} color="#1B1931" />
@@ -165,26 +176,26 @@ export default function QuizTaking() {
           <LinearGradient
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            colors={["#FFDDB5", "#FFA940"]}
+            colors={["#6D44F2", "#4648D4"]}
             style={[styles.progressFill, { width: `${progressPercent}%` }]}
           />
         </View>
 
-        {/* Subject & AI Verified Tag Row */}
+        {/* Subject & Export Button Row (Removed "AI Verified" text) */}
         <View style={styles.metaRow}>
           <View style={styles.subjectRow}>
             <Ionicons name="flask-outline" size={16} color="#1B1931" style={{ marginRight: 6 }} />
-            <Text style={styles.subjectText}>{quiz.category || "Biology"}</Text>
+            <Text style={styles.subjectText}>{quiz.category || quiz.title}</Text>
           </View>
 
-          <View style={styles.verifiedRow}>
-            <Image
-              source={require("../../../assets/illustrations/smarty_logo.png")}
-              style={styles.verifiedLogo}
-              resizeMode="contain"
-            />
-            <Text style={styles.verifiedText}>AI Verified</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.exportBtn}
+            onPress={() => setShowExportModal(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="download-outline" size={15} color={THEME.colors.primary} style={{ marginRight: 4 }} />
+            <Text style={styles.exportBtnText}>Export</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Question Card */}
@@ -206,7 +217,10 @@ export default function QuizTaking() {
                   styles.optionCard,
                   isSelected ? styles.optionCardSelected : styles.optionCardDefault,
                 ]}
-                onPress={() => selectAnswer(currentQ.id, index)}
+                onPress={() => {
+                  triggerHaptic.selection();
+                  selectAnswer(currentQ.id, index);
+                }}
                 activeOpacity={0.85}
               >
                 <Text
@@ -219,7 +233,7 @@ export default function QuizTaking() {
                 </Text>
 
                 {isSelected ? (
-                  <Ionicons name="checkmark-circle" size={24} color="#4648D4" />
+                  <Ionicons name="checkmark-circle" size={24} color="#6D44F2" />
                 ) : (
                   <View style={styles.emptyCircleIndicator} />
                 )}
@@ -228,22 +242,21 @@ export default function QuizTaking() {
           })}
         </View>
 
-        {/* Concept Key Card */}
-        <View style={styles.conceptCard}>
-          <View style={styles.bulbIconCircle}>
-            <Ionicons name="bulb" size={18} color="#F59E0B" />
-          </View>
-          <View style={styles.conceptTextCol}>
-            <View style={styles.conceptHeaderRow}>
-              <Text style={styles.conceptKeyTag}>CONCEPT KEY</Text>
-              <Text style={styles.conceptCategory}>{quiz.category || "Cell Biology"}</Text>
+        {/* Concept Explanation Card */}
+        {currentQ.explanation ? (
+          <View style={styles.conceptCard}>
+            <View style={styles.bulbIconCircle}>
+              <Ionicons name="bulb" size={18} color="#F59E0B" />
             </View>
-            <Text style={styles.conceptBody}>
-              {currentQ.explanation ||
-                "Mitochondria generate ATP through cellular respiration, powering nearly everything the cell does."}
-            </Text>
+            <View style={styles.conceptTextCol}>
+              <View style={styles.conceptHeaderRow}>
+                <Text style={styles.conceptKeyTag}>CONCEPT KEY</Text>
+                <Text style={styles.conceptCategory}>{quiz.category || "Study Concept"}</Text>
+              </View>
+              <Text style={styles.conceptBody}>{currentQ.explanation}</Text>
+            </View>
           </View>
-        </View>
+        ) : null}
 
         {/* Next Question / Finish Button */}
         <TouchableOpacity
@@ -256,11 +269,18 @@ export default function QuizTaking() {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.actionBtnText}>
-              {isLastQuestion ? "Complete quiz →" : "Next question →"}
+              {isLastQuestion ? "Complete Quiz →" : "Next Question →"}
             </Text>
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Export Modal Component */}
+      <ExportModal
+        visible={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        quiz={quiz}
+      />
     </View>
   );
 }
@@ -280,20 +300,38 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 32,
+    marginTop: 40,
   },
-  emptyText: {
-    fontSize: 16,
-    color: "#6B7280",
-    marginBottom: 16,
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
   },
   backHomeButton: {
-    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 24,
+    borderRadius: 16,
     backgroundColor: THEME.colors.primary,
+    shadowColor: THEME.colors.primary,
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4,
   },
   backHomeText: {
     color: "#FFFFFF",
+    fontSize: 15,
     fontWeight: "700",
   },
   subBarRow: {
@@ -341,37 +379,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1B1931",
   },
-  timerPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#EEF2FF",
-    borderWidth: 1,
-    borderColor: "#C7D2FE",
-    borderRadius: 9999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    shadowColor: "#4338CA",
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
-  },
-  timerPillUrgent: {
-    backgroundColor: "#FEE2E2",
-    borderColor: "#FCA5A5",
-  },
-  timerPillText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#4338CA",
-    fontVariant: ["tabular-nums"],
-  },
-  timerPillTextUrgent: {
-    color: "#DC2626",
-  },
   progressTrack: {
     width: "100%",
-    height: 3,
-    backgroundColor: "#F3F4F6",
+    height: 4,
+    backgroundColor: "#F1F5F9",
     borderRadius: 2,
     marginBottom: 16,
     overflow: "hidden",
@@ -395,19 +406,20 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1B1931",
   },
-  verifiedRow: {
+  exportBtn: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#F5F3FF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#EDE9FE",
   },
-  verifiedLogo: {
-    width: 16,
-    height: 16,
-    marginRight: 6,
-  },
-  verifiedText: {
+  exportBtnText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#6B7280",
+    fontWeight: "700",
+    color: "#6D44F2",
   },
   questionCard: {
     backgroundColor: "#FFFFFF",
@@ -462,8 +474,8 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   optionCardSelected: {
-    backgroundColor: "#EAE8FE",
-    borderColor: "#4648D4",
+    backgroundColor: "#F5F3FF",
+    borderColor: "#6D44F2",
   },
   optionText: {
     fontSize: 15,
@@ -475,7 +487,7 @@ const styles = StyleSheet.create({
     color: "#1B1931",
   },
   optionTextSelected: {
-    color: "#4648D4",
+    color: "#6D44F2",
     fontWeight: "700",
   },
   emptyCircleIndicator: {
@@ -533,8 +545,8 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     width: "100%",
-    height: 52,
-    borderRadius: 26,
+    height: 54,
+    borderRadius: 16,
     backgroundColor: THEME.colors.primary,
     alignItems: "center",
     justifyContent: "center",

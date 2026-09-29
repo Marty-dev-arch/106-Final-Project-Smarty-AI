@@ -9,10 +9,21 @@ interface AuthContextType {
   error: string | null;
   signIn: (email: string, pass: string) => Promise<void>;
   signUp: (email: string, pass: string, name?: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   guestSignIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   refreshUser: () => Promise<void>;
+  recordDailyActivity: () => Promise<{ streak: number; incremented: boolean }>;
   updateUser: (updates: Partial<UserProfile>) => Promise<void>;
+  updateAccountDetails: (params: {
+    displayName?: string;
+    email?: string;
+    password?: string;
+    oldPassword?: string;
+    photoURL?: string;
+  }) => Promise<UserProfile>;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,7 +34,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Initial load from storage
     loadUser();
+
+    // Subscribe to Firebase Auth state changes
+    const unsubscribe = authService.onAuthStateChanged(async (fbUser) => {
+      if (fbUser) {
+        try {
+          const profile = await authService.fetchUserProfile(fbUser);
+          setUser(profile);
+        } catch (e) {
+          console.warn('Auth state profile fetch error:', e);
+        }
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const loadUser = async () => {
@@ -44,7 +70,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const u = await authService.signIn(email, pass);
       setUser(u);
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in.');
+      const msg = err.message || 'Failed to sign in.';
+      setError(msg);
       throw err;
     } finally {
       setLoading(false);
@@ -58,7 +85,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const u = await authService.signUp(email, pass, name);
       setUser(u);
     } catch (err: any) {
-      setError(err.message || 'Failed to sign up.');
+      const msg = err.message || 'Failed to create account.';
+      setError(msg);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const u = await authService.signInWithGoogle();
+      setUser(u);
+    } catch (err: any) {
+      const msg = err.message || 'Failed to sign in with Google.';
+      setError(msg);
       throw err;
     } finally {
       setLoading(false);
@@ -82,15 +125,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       await authService.signOut();
-      const guest = await authService.signInAsGuest();
-      setUser(guest);
+      setUser(null);
     } finally {
       setLoading(false);
     }
   };
 
+  const resetPassword = async (email: string) => {
+    setError(null);
+    try {
+      await authService.resetPassword(email);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send password reset email.');
+      throw err;
+    }
+  };
+
   const refreshUser = async () => {
     await loadUser();
+  };
+
+  const recordDailyActivity = async (): Promise<{ streak: number; incremented: boolean }> => {
+    try {
+      const res = await authService.recordStreakActivity(user?.uid);
+      await loadUser();
+      return res;
+    } catch {
+      return { streak: user?.streak || 1, incremented: false };
+    }
   };
 
   const updateUser = async (updates: Partial<UserProfile>) => {
@@ -102,6 +164,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const updateAccountDetails = async (params: {
+    displayName?: string;
+    email?: string;
+    password?: string;
+    oldPassword?: string;
+    photoURL?: string;
+  }): Promise<UserProfile> => {
+    setError(null);
+    try {
+      const updated = await authService.updateAccountDetails(params);
+      setUser(updated);
+      return updated;
+    } catch (err: any) {
+      setError(err.message || 'Failed to update account details.');
+      throw err;
+    }
+  };
+
+  const clearError = () => setError(null);
+
   return (
     <AuthContext.Provider
       value={{
@@ -110,10 +192,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         signIn,
         signUp,
+        signInWithGoogle,
         guestSignIn,
         signOut,
+        resetPassword,
         refreshUser,
+        recordDailyActivity,
         updateUser,
+        updateAccountDetails,
+        clearError,
       }}
     >
       {children}
@@ -128,3 +215,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

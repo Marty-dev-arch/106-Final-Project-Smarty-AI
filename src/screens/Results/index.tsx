@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   ScrollView,
@@ -14,12 +14,18 @@ import { RootStackParamList } from "../../types/navigation";
 import { useQuiz } from "../../context/QuizContext";
 import { useAuth } from "../../context/AuthContext";
 import TopBar from "../../components/common/TopBar";
+import ExportModal from "../../components/common/ExportModal";
+import SmartyMascot from "../../components/common/SmartyMascot";
+import ConfettiCannon from "../../components/common/ConfettiCannon";
+import XPCounterRollup from "../../components/common/XPCounterRollup";
+import { triggerHaptic } from "../../utils/haptics";
 import THEME from "../../config/theme";
 
 export default function Results() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { latestAttempt, activeQuiz } = useQuiz();
   const { user } = useAuth();
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const attempt = latestAttempt || {
     id: "att_1",
@@ -39,8 +45,21 @@ export default function Results() {
   const seconds = attempt.timeSpentSeconds % 60;
   const formattedTime = `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
 
+  const isCelebration = attempt.percentage >= 80;
+
+  useEffect(() => {
+    if (isCelebration) {
+      triggerHaptic.success();
+    } else {
+      triggerHaptic.medium();
+    }
+  }, []);
+
   return (
     <View style={styles.container}>
+      {/* Full-screen Confetti celebration on high score */}
+      {isCelebration && <ConfettiCannon count={50} active={true} />}
+
       <TopBar
         title="Quiz Summary Review"
         showBack
@@ -66,7 +85,19 @@ export default function Results() {
           </TouchableOpacity>
         </View>
 
-        {/* Score Circle Gauge with Mascot Badge */}
+        {/* Mascot Mood Presentation */}
+        <View style={{ alignItems: "center", marginVertical: 6 }}>
+          <SmartyMascot
+            size={96}
+            mood={isCelebration ? "celebrating" : "encouraging"}
+            interactive={true}
+          />
+        </View>
+
+        {/* Animated Rolling XP Counter */}
+        <XPCounterRollup targetXP={attempt.earnedXP || 250} />
+
+        {/* Score Circle Gauge */}
         <View style={styles.gaugeContainer}>
           <View style={styles.gaugeOuterRing}>
             <View style={styles.gaugeInnerCircle}>
@@ -75,15 +106,6 @@ export default function Results() {
                 <Text style={styles.scorePercentSign}>%</Text>
               </View>
               <Text style={styles.scoreLabel}>SCORE</Text>
-            </View>
-
-            {/* Mascot Badge Floating on Gauge Edge */}
-            <View style={styles.floatingMascotBadge}>
-              <Image
-                source={require("../../../assets/illustrations/smarty_logo.png")}
-                style={styles.floatingMascotImage}
-                resizeMode="contain"
-              />
             </View>
           </View>
         </View>
@@ -131,14 +153,9 @@ export default function Results() {
           <View style={styles.insightTextCol}>
             <Text style={styles.insightTitle}>Knowledge Insight</Text>
             <Text style={styles.insightBody}>
-              You excelled in Mitochondrial ATP synthesis. Review organelle transport pathways to reach 100% mastery.
+              Review concept keys and explanations to solidify your high score.
             </Text>
           </View>
-        </View>
-
-        {/* Practice Recommendation Box */}
-        <View style={styles.practiceBox}>
-          <Ionicons name="image-outline" size={28} color="#A78BFA" />
         </View>
 
         {/* Review Answers Button */}
@@ -150,6 +167,18 @@ export default function Results() {
           <Text style={styles.reviewBtnText}>Review answers →</Text>
         </TouchableOpacity>
 
+        {/* Export Quiz Button */}
+        {activeQuiz && (
+          <TouchableOpacity
+            style={styles.exportOutlineBtn}
+            onPress={() => setShowExportModal(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="download-outline" size={18} color="#6D44F2" style={{ marginRight: 6 }} />
+            <Text style={styles.exportOutlineBtnText}>Export Quiz (DOCX, PPT, PDF)</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Back to Home Link */}
         <TouchableOpacity
           style={styles.backHomeBtn}
@@ -159,6 +188,15 @@ export default function Results() {
           <Text style={styles.backHomeText}>Back to home</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {activeQuiz && (
+        <ExportModal
+          visible={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          quiz={activeQuiz}
+          attempt={attempt}
+        />
+      )}
     </View>
   );
 }
@@ -408,6 +446,23 @@ const styles = StyleSheet.create({
   reviewBtnText: {
     color: "#FFFFFF",
     fontSize: 16,
+    fontWeight: "700",
+  },
+  exportOutlineBtn: {
+    width: "100%",
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#F5F3FF",
+    borderWidth: 1.5,
+    borderColor: "#6D44F2",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  exportOutlineBtnText: {
+    color: "#6D44F2",
+    fontSize: 14,
     fontWeight: "700",
   },
   backHomeBtn: {

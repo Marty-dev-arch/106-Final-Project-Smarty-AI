@@ -4,6 +4,8 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import THEME from '../../config/theme';
 import { BellIcon } from './TopBar';
+import { useNotifications } from '../../context/NotificationContext';
+import NotificationDropdown from './NotificationDropdown';
 
 interface HeaderProps {
   title?: string;
@@ -27,6 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
   showBell = false,
 }) => {
   const navigation = useNavigation();
+  const { unreadCount, toggleDropdown } = useNotifications();
 
   const handleBack = () => {
     if (onBackPress) {
@@ -37,47 +40,51 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <View style={styles.headerContainer}>
-      <View style={styles.leftContainer}>
-        {showBack && (
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            activeOpacity={0.7}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="chevron-back" size={24} color={THEME.colors.textPrimary} />
-          </TouchableOpacity>
-        )}
-      </View>
+    <>
+      <View style={styles.headerContainer}>
+        <View style={styles.leftContainer}>
+          {showBack && (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBack}
+              activeOpacity={0.7}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="chevron-back" size={24} color={THEME.colors.textPrimary} />
+            </TouchableOpacity>
+          )}
+        </View>
 
-      <View style={styles.titleContainer}>
-        {Boolean(title) && <Text style={styles.titleText}>{title}</Text>}
-        {Boolean(subtitle) && <Text style={styles.subtitleText}>{subtitle}</Text>}
-      </View>
+        <View style={styles.titleContainer}>
+          {Boolean(title) && <Text style={styles.titleText}>{title}</Text>}
+          {Boolean(subtitle) && <Text style={styles.subtitleText}>{subtitle}</Text>}
+        </View>
 
-      <View style={styles.rightContainer}>
-        {rightComponent ? (
-          rightComponent
-        ) : showBell ? (
-          <TouchableOpacity
-            style={styles.rightButton}
-            onPress={onRightPress}
-            activeOpacity={0.7}
-          >
-            <BellIcon size={22} color={THEME.colors.textPrimary} />
-          </TouchableOpacity>
-        ) : rightIcon ? (
-          <TouchableOpacity
-            style={styles.rightButton}
-            onPress={onRightPress}
-            activeOpacity={0.7}
-          >
-            <Ionicons name={rightIcon} size={22} color={THEME.colors.textPrimary} />
-          </TouchableOpacity>
-        ) : null}
+        <View style={styles.rightContainer}>
+          {rightComponent ? (
+            rightComponent
+          ) : showBell ? (
+            <TouchableOpacity
+              style={styles.rightButton}
+              onPress={onRightPress || toggleDropdown}
+              activeOpacity={0.7}
+            >
+              <BellIcon size={22} color={THEME.colors.textPrimary} />
+              {unreadCount > 0 && <View style={styles.badgeDot} />}
+            </TouchableOpacity>
+          ) : rightIcon ? (
+            <TouchableOpacity
+              style={styles.rightButton}
+              onPress={onRightPress}
+              activeOpacity={0.7}
+            >
+              <Ionicons name={rightIcon} size={22} color={THEME.colors.textPrimary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
-    </View>
+      {showBell && <NotificationDropdown />}
+    </>
   );
 };
 
@@ -129,6 +136,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0EBFF',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  badgeDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
 });
 

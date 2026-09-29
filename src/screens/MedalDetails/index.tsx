@@ -14,12 +14,14 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { RootStackParamList } from "../../types/navigation";
 import BottomNav from "../../components/common/BottomNav";
+import ConfettiCannon from "../../components/common/ConfettiCannon";
 
 export default function MedalDetails() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "MedalDetails">>();
 
   const medalName = route.params?.medal?.title || "Gold Scholar";
+  const isUnlocked = route.params?.medal?.unlocked !== false;
 
   const handleShare = async () => {
     try {
@@ -33,6 +35,9 @@ export default function MedalDetails() {
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.container}>
+      {/* Confetti Cannon on Unlocked Medal */}
+      {isUnlocked && <ConfettiCannon count={40} active={true} />}
+
       {/* Top Header Bar */}
       <View style={styles.topHeader}>
         <TouchableOpacity

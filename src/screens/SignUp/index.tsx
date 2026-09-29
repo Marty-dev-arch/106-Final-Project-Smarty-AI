@@ -1,35 +1,192 @@
-import React, { useState } from 'react';
-import { View, ScrollView, Image, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Dimensions,
+  Platform,
+  KeyboardAvoidingView,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  withRepeat,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
+
 import { RootStackParamList } from '../../types/navigation';
 import { useAuth } from '../../context/AuthContext';
-import InputField from '../../components/common/InputField';
-import Header from '../../components/common/Header';
-import THEME from '../../config/theme';
+import { useTheme } from '../../context/ThemeContext';
+import { triggerHaptic } from '../../utils/haptics';
+import BlinkingMascot from '../../components/common/BlinkingMascot';
+import Svg, { Path } from 'react-native-svg';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// ─── Authentic Google Logo SVG ───────────────────────────────────────────────
+const GoogleLogo: React.FC<{ size?: number }> = ({ size = 20 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+      fill="#4285F4"
+    />
+    <Path
+      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+      fill="#34A853"
+    />
+    <Path
+      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+      fill="#FBBC05"
+    />
+    <Path
+      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+      fill="#EA4335"
+    />
+  </Svg>
+);
+
+// ─── Ambient Glow Orb ─────────────────────────────────────────────────────────
+const AmbientGlowOrb: React.FC<{
+  size: number;
+  colors: [string, string, ...string[]];
+  initialPosition: { top?: number; left?: number; right?: number; bottom?: number };
+  duration?: number;
+}> = ({ size, colors, initialPosition, duration = 4000 }) => {
+  const translateY = useSharedValue(0);
+  const translateX = useSharedValue(0);
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    translateY.value = withRepeat(
+      withSequence(
+        withTiming(-16, { duration, easing: Easing.inOut(Easing.quad) }),
+        withTiming(14, { duration: duration * 1.1, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: duration * 0.9, easing: Easing.inOut(Easing.quad) })
+      ),
+      -1,
+      true
+    );
+    translateX.value = withRepeat(
+      withSequence(
+        withTiming(12, { duration: duration * 1.2, easing: Easing.inOut(Easing.quad) }),
+        withTiming(-10, { duration: duration * 0.9, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: duration * 1.1, easing: Easing.inOut(Easing.quad) })
+      ),
+      -1,
+      true
+    );
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.12, { duration: duration * 1.4, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0.92, { duration: duration * 1.3, easing: Easing.inOut(Easing.quad) }),
+        withTiming(1, { duration: duration * 1.2, easing: Easing.inOut(Easing.quad) })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: translateY.value },
+      { translateX: translateX.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          opacity: 0.45,
+          overflow: 'hidden',
+          ...initialPosition,
+        },
+        animStyle,
+      ]}
+      pointerEvents="none"
+    >
+      <LinearGradient
+        colors={colors}
+        start={{ x: 0.1, y: 0.1 }}
+        end={{ x: 0.9, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+      />
+    </Animated.View>
+  );
+};
 
 export default function SignUp() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { signUp } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { signUp, signInWithGoogle } = useAuth();
+  const { colors, isDark } = useTheme();
 
-  const [fullName, setFullName] = useState('Marty Goboy');
-  const [email, setEmail] = useState('marty.goboy@edu.com');
-  const [password, setPassword] = useState('password123');
-  const [confirmPassword, setConfirmPassword] = useState('password123');
+  // Form Fields
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Focus Tracker
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  // Entrance Animations
+  const cardScale = useSharedValue(0.94);
+  const cardOpacity = useSharedValue(0);
+  const cardTranslateY = useSharedValue(20);
+
+  useEffect(() => {
+    cardScale.value = withSpring(1, { damping: 16, stiffness: 220 });
+    cardOpacity.value = withTiming(1, { duration: 450 });
+    cardTranslateY.value = withSpring(0, { damping: 15, stiffness: 190 });
+  }, []);
+
+  const animatedCardStyle = useAnimatedStyle(() => ({
+    opacity: cardOpacity.value,
+    transform: [{ scale: cardScale.value }, { translateY: cardTranslateY.value }],
+  }));
+
   const handleSignUp = async () => {
-    if (!email.trim() || !password.trim()) {
-      setError('Please fill in all fields.');
+    triggerHaptic.medium();
+    if (!fullName.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+      triggerHaptic.error();
+      setError('Please fill in all required fields.');
+      return;
+    }
+    const emailRegex = /\S+@\S+\.\S+/;
+    if (!emailRegex.test(email.trim())) {
+      triggerHaptic.error();
+      setError('Please enter a valid email address.');
       return;
     }
     if (password.length < 6) {
+      triggerHaptic.error();
       setError('Password must be at least 6 characters.');
       return;
     }
     if (password !== confirmPassword) {
+      triggerHaptic.error();
       setError('Passwords do not match.');
       return;
     }
@@ -38,188 +195,757 @@ export default function SignUp() {
     setError(null);
     try {
       await signUp(email.trim(), password, fullName.trim());
-      // Navigate through onboarding to introduce user to features
+      triggerHaptic.success();
       navigation.navigate('MainOnboard1');
     } catch (err: any) {
+      triggerHaptic.error();
       setError(err.message || 'Failed to create account.');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    triggerHaptic.medium();
+    setGoogleLoading(true);
+    setError(null);
+    try {
+      await signInWithGoogle();
+      triggerHaptic.success();
+      navigation.navigate('Dashboard');
+    } catch (err: any) {
+      triggerHaptic.error();
+      setError(err.message || 'Failed to sign in with Google.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const isPasswordMatch = password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
+  const isPasswordMismatch = confirmPassword.length > 0 && password !== confirmPassword;
+
   return (
-    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <Header showBack title="" />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.contentWrapper}>
-          {/* Header */}
-          <View style={styles.headerSection}>
-            <Image
-              source={require("../../../assets/illustrations/smarty_logo.png")}
-              resizeMode="contain"
-              style={styles.logoImage}
-            />
-            <Text style={styles.titleText}>Join Smarty AI</Text>
-            <Text style={styles.subtitleText}>Create an account to save progress across devices.</Text>
-          </View>
+    <View style={[styles.root, { backgroundColor: isDark ? '#090814' : '#F7F6FD' }]}>
+      {/* ─── Ambient iOS Mesh Gradient Orbs ───────────────────────────────────── */}
+      <AmbientGlowOrb
+        size={SCREEN_WIDTH * 0.85}
+        colors={isDark ? ['#5B21B6', '#312E81', '#1E1B4B'] : ['#C4B5FD', '#E0E7FF', '#DDD6FE']}
+        initialPosition={{ top: -60, right: -60 }}
+        duration={4200}
+      />
+      <AmbientGlowOrb
+        size={SCREEN_WIDTH * 0.75}
+        colors={isDark ? ['#4338CA', '#3730A3', '#1E1B4B'] : ['#DDD6FE', '#F3E8FF', '#E0E7FF']}
+        initialPosition={{ top: SCREEN_HEIGHT * 0.35, left: -80 }}
+        duration={4800}
+      />
+      <AmbientGlowOrb
+        size={SCREEN_WIDTH * 0.65}
+        colors={isDark ? ['#6D28D9', '#4C1D95', '#0F172A'] : ['#E9D5FF', '#FCE7F3', '#EDE9FE']}
+        initialPosition={{ bottom: -40, right: -40 }}
+        duration={3600}
+      />
 
-          {/* Form */}
-          <View style={styles.formSection}>
-            {error && (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorBannerText}>{error}</Text>
-              </View>
-            )}
-
-            <InputField
-              label="Full Name"
-              value={fullName}
-              onChangeText={setFullName}
-              placeholder="Your Name"
-              autoCapitalize="words"
-              leftIcon="person-outline"
-            />
-
-            <InputField
-              label="Email Address"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="imu@email.com"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              leftIcon="mail-outline"
-            />
-
-            <InputField
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="At least 6 characters"
-              isPassword
-              leftIcon="lock-closed-outline"
-            />
-
-            <InputField
-              label="Confirm Password"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Repeat password"
-              isPassword
-              leftIcon="shield-checkmark-outline"
-            />
-
-            <TouchableOpacity
-              style={[styles.submitButton, loading && styles.buttonDisabled]}
-              onPress={handleSignUp}
-              disabled={loading}
-              activeOpacity={0.85}
-            >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.submitButtonText}>Create Account</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Switch to Sign In */}
-          <View style={styles.switchRow}>
-            <Text style={styles.switchText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('SignIn')}>
-              <Text style={styles.switchLink}>Sign in</Text>
-            </TouchableOpacity>
-          </View>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        {/* ─── Top iOS Navigation Bar ─────────────────────────────────────────── */}
+        <View style={styles.navBar}>
+          <TouchableOpacity
+            style={[
+              styles.navBackBtn,
+              {
+                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.75)',
+                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)',
+              },
+            ]}
+            onPress={() => {
+              triggerHaptic.light();
+              if (navigation.canGoBack()) navigation.goBack();
+              else navigation.navigate('SignIn');
+            }}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="chevron-back" size={20} color={isDark ? '#F1F5F9' : '#1E1B4B'} />
+          </TouchableOpacity>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Animated.View style={[styles.cardWrapper, animatedCardStyle]}>
+              
+              {/* ─── Mascot Header ───────────────────────────────────────────── */}
+              <View style={styles.heroHeader}>
+                <View style={styles.mascotHaloContainer}>
+                  <LinearGradient
+                    colors={['#8B5CF6', '#6366F1', '#EC4899']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.mascotHaloGlow}
+                  />
+                  <View
+                    style={[
+                      styles.mascotPlate,
+                      {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.25)',
+                        borderColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.4)',
+                      },
+                    ]}
+                  >
+                    <BlinkingMascot size={68} style={styles.mascotAvatar} />
+                  </View>
+                </View>
+
+                <Text style={[styles.mainHeading, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>
+                  Join Smarty AI
+                </Text>
+                <Text style={[styles.subHeading, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                  Turn any notes, documents & slide decks into powerful study quizzes.
+                </Text>
+              </View>
+
+              {/* ─── Error Notification Banner ───────────────────────────────── */}
+              {error && (
+                <View
+                  style={[
+                    styles.errorBanner,
+                    {
+                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : '#FEF2F2',
+                      borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : '#FCA5A5',
+                    },
+                  ]}
+                >
+                  <Ionicons name="alert-circle" size={18} color="#EF4444" style={{ marginRight: 8 }} />
+                  <Text style={styles.errorBannerText}>{error}</Text>
+                </View>
+              )}
+
+              {/* ─── iOS Translucent Glass Form Card ─────────────────────────── */}
+              <View
+                style={[
+                  styles.glassFormCard,
+                  {
+                    backgroundColor: isDark ? 'rgba(26, 23, 48, 0.65)' : 'rgba(255, 255, 255, 0.85)',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.95)',
+                    shadowColor: isDark ? '#000000' : '#4F46E5',
+                  },
+                ]}
+              >
+                {/* Full Name Input */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#CBD5E1' : '#475569' }]}>
+                    FULL NAME
+                  </Text>
+                  <View
+                    style={[
+                      styles.iosInputContainer,
+                      {
+                        backgroundColor: isDark ? 'rgba(15, 13, 30, 0.7)' : '#F8FAFC',
+                        borderColor:
+                          focusedField === 'fullName'
+                            ? '#7C3AED'
+                            : isDark
+                            ? 'rgba(255,255,255,0.08)'
+                            : '#E2E8F0',
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="person-outline"
+                      size={20}
+                      color={focusedField === 'fullName' ? '#7C3AED' : isDark ? '#64748B' : '#94A3B8'}
+                      style={styles.fieldLeftIcon}
+                    />
+                    <TextInput
+                      style={[styles.iosTextInput, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
+                      placeholder="e.g. Alex Morgan"
+                      placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                      value={fullName}
+                      onChangeText={(t) => {
+                        setFullName(t);
+                        if (error) setError(null);
+                      }}
+                      onFocus={() => setFocusedField('fullName')}
+                      onBlur={() => setFocusedField(null)}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                </View>
+
+                {/* Email Address Input */}
+                <View style={[styles.inputGroup, { marginTop: 14 }]}>
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#CBD5E1' : '#475569' }]}>
+                    EMAIL ADDRESS
+                  </Text>
+                  <View
+                    style={[
+                      styles.iosInputContainer,
+                      {
+                        backgroundColor: isDark ? 'rgba(15, 13, 30, 0.7)' : '#F8FAFC',
+                        borderColor:
+                          focusedField === 'email'
+                            ? '#7C3AED'
+                            : isDark
+                            ? 'rgba(255,255,255,0.08)'
+                            : '#E2E8F0',
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="mail-outline"
+                      size={20}
+                      color={focusedField === 'email' ? '#7C3AED' : isDark ? '#64748B' : '#94A3B8'}
+                      style={styles.fieldLeftIcon}
+                    />
+                    <TextInput
+                      style={[styles.iosTextInput, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
+                      placeholder="name@university.edu"
+                      placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                      value={email}
+                      onChangeText={(t) => {
+                        setEmail(t);
+                        if (error) setError(null);
+                      }}
+                      onFocus={() => setFocusedField('email')}
+                      onBlur={() => setFocusedField(null)}
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                    />
+                  </View>
+                </View>
+
+                {/* Password Input */}
+                <View style={[styles.inputGroup, { marginTop: 14 }]}>
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#CBD5E1' : '#475569' }]}>
+                    CREATE PASSWORD
+                  </Text>
+                  <View
+                    style={[
+                      styles.iosInputContainer,
+                      {
+                        backgroundColor: isDark ? 'rgba(15, 13, 30, 0.7)' : '#F8FAFC',
+                        borderColor:
+                          focusedField === 'password'
+                            ? '#7C3AED'
+                            : isDark
+                            ? 'rgba(255,255,255,0.08)'
+                            : '#E2E8F0',
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={20}
+                      color={focusedField === 'password' ? '#7C3AED' : isDark ? '#64748B' : '#94A3B8'}
+                      style={styles.fieldLeftIcon}
+                    />
+                    <TextInput
+                      style={[styles.iosTextInput, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
+                      placeholder="At least 6 characters"
+                      placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                      value={password}
+                      onChangeText={(t) => {
+                        setPassword(t);
+                        if (error) setError(null);
+                      }}
+                      onFocus={() => setFocusedField('password')}
+                      onBlur={() => setFocusedField(null)}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity
+                      onPress={() => {
+                        triggerHaptic.selection();
+                        setShowPassword(!showPassword);
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons
+                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={20}
+                        color={isDark ? '#94A3B8' : '#64748B'}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Confirm Password Input */}
+                <View style={[styles.inputGroup, { marginTop: 14 }]}>
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#CBD5E1' : '#475569' }]}>
+                    CONFIRM PASSWORD
+                  </Text>
+                  <View
+                    style={[
+                      styles.iosInputContainer,
+                      {
+                        backgroundColor: isDark ? 'rgba(15, 13, 30, 0.7)' : '#F8FAFC',
+                        borderColor:
+                          focusedField === 'confirmPassword'
+                            ? '#7C3AED'
+                            : isDark
+                            ? 'rgba(255,255,255,0.08)'
+                            : '#E2E8F0',
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="shield-checkmark-outline"
+                      size={20}
+                      color={focusedField === 'confirmPassword' ? '#7C3AED' : isDark ? '#64748B' : '#94A3B8'}
+                      style={styles.fieldLeftIcon}
+                    />
+                    <TextInput
+                      style={[styles.iosTextInput, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
+                      placeholder="Repeat password"
+                      placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                      value={confirmPassword}
+                      onChangeText={(t) => {
+                        setConfirmPassword(t);
+                        if (error) setError(null);
+                      }}
+                      onFocus={() => setFocusedField('confirmPassword')}
+                      onBlur={() => setFocusedField(null)}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  {isPasswordMatch && (
+                    <View style={styles.matchBadge}>
+                      <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                      <Text style={styles.matchText}>Passwords match perfectly</Text>
+                    </View>
+                  )}
+                  {isPasswordMismatch && (
+                    <View style={styles.mismatchBadge}>
+                      <Ionicons name="close-circle" size={14} color="#EF4444" />
+                      <Text style={styles.mismatchText}>Passwords do not match</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* ─── Apple-Grade Gradient Submit Button ───────────────────── */}
+                <TouchableOpacity
+                  onPress={handleSignUp}
+                  disabled={loading}
+                  activeOpacity={0.88}
+                  style={styles.submitBtnWrapper}
+                >
+                  <LinearGradient
+                    colors={['#6D44F2', '#5844E8', '#4648D4']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.gradientSubmitBtn}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <>
+                        <Text style={styles.submitBtnText}>Create My Free Account</Text>
+                        <View style={styles.submitArrowCircle}>
+                          <Ionicons name="arrow-forward" size={16} color="#5844E8" />
+                        </View>
+                      </>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+
+              {/* ─── Divider: "OR CONNECT WITH" ─────────────────────────────── */}
+              <View style={styles.dividerRow}>
+                <View
+                  style={[
+                    styles.dividerLine,
+                    { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' },
+                  ]}
+                />
+                <Text style={[styles.dividerText, { color: isDark ? '#64748B' : '#94A3B8' }]}>
+                  OR CONNECT WITH
+                </Text>
+                <View
+                  style={[
+                    styles.dividerLine,
+                    { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' },
+                  ]}
+                />
+              </View>
+
+              {/* ─── Modern Google Sign In Button ────────────────────────────── */}
+              <View style={styles.socialButtonsRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.googleSignInBtn,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#FFFFFF',
+                      borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#E2E8F0',
+                    },
+                  ]}
+                  onPress={handleGoogleSignIn}
+                  disabled={googleLoading}
+                  activeOpacity={0.82}
+                >
+                  {googleLoading ? (
+                    <ActivityIndicator color={isDark ? '#FFFFFF' : '#4285F4'} size="small" />
+                  ) : (
+                    <>
+                      <GoogleLogo size={20} />
+                      <Text style={[styles.googleSignInText, { color: isDark ? '#FFFFFF' : '#1E293B' }]}>
+                        Sign up with Google
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* ─── Switch back to Sign In ─────────────────────────────────── */}
+              <View style={styles.switchRow}>
+                <Text style={[styles.switchText, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                  Already have an account?{' '}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    triggerHaptic.selection();
+                    navigation.navigate('SignIn');
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.switchLink}>Sign in</Text>
+                </TouchableOpacity>
+              </View>
+
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  navBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    zIndex: 10,
+  },
+  navBackBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navCenterBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  navGreenDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+    marginRight: 6,
+  },
+  navBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  navHelpBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 19,
+    borderWidth: 1,
+  },
+  guestPillText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingBottom: 32,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
+    alignItems: 'center',
   },
-  contentWrapper: {
+  cardWrapper: {
     width: '100%',
     maxWidth: 420,
-    alignSelf: 'center',
-  },
-  headerSection: {
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 24,
   },
-  logoImage: {
-    width: 60,
-    height: 60,
+
+  // Hero Header & Mascot
+  heroHeader: {
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 18,
+  },
+  mascotHaloContainer: {
+    width: 88,
+    height: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
+    position: 'relative',
   },
-  titleText: {
+  mascotHaloGlow: {
+    position: 'absolute',
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    opacity: 0.45,
+  },
+  mascotPlate: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  mascotAvatar: {
+    marginTop: 0,
+  },
+  mainHeading: {
     fontSize: 26,
     fontWeight: '800',
-    color: THEME.colors.textPrimary,
+    letterSpacing: -0.5,
     marginBottom: 6,
-  },
-  subtitleText: {
-    fontSize: 14,
-    color: THEME.colors.textSecondary,
     textAlign: 'center',
   },
-  formSection: {
-    width: '100%',
-    marginBottom: 20,
+  subHeading: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 16,
+    fontWeight: '400',
   },
-  errorBox: {
-    backgroundColor: THEME.colors.errorLight,
-    padding: 12,
-    borderRadius: 10,
+
+  // iOS Segmented Switcher
+  segmentedContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1,
+    padding: 4,
+    marginBottom: 16,
+    position: 'relative',
+  },
+  segmentedIndicator: {
+    position: 'absolute',
+    top: 4,
+    bottom: 4,
+    left: 4,
+    borderRadius: 19,
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  segmentBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  segmentBtnText: {
+    fontSize: 14,
+    letterSpacing: -0.2,
+  },
+
+  // Error Banner
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     marginBottom: 16,
   },
   errorBannerText: {
-    color: THEME.colors.error,
+    flex: 1,
     fontSize: 13,
     fontWeight: '600',
+    color: '#EF4444',
+    lineHeight: 18,
   },
-  submitButton: {
+
+  // Glass Form Card
+  glassFormCard: {
+    width: '100%',
+    borderRadius: 28,
+    borderWidth: 1.5,
+    padding: 20,
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  inputGroup: {
+    width: '100%',
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  iosInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingHorizontal: 14,
+  },
+  fieldLeftIcon: {
+    marginRight: 10,
+  },
+  iosTextInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    paddingVertical: 8,
+  },
+  matchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 4,
+  },
+  matchText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+  mismatchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 4,
+  },
+  mismatchText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+
+  // Submit Button
+  submitBtnWrapper: {
+    width: '100%',
+    borderRadius: 20,
+    marginTop: 20,
+    shadowColor: '#6D44F2',
+    shadowOpacity: 0.4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  gradientSubmitBtn: {
+    height: 54,
+    borderRadius: 20,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: THEME.colors.primary,
-    borderRadius: 14,
-    paddingVertical: 15,
-    marginTop: 8,
-    shadowColor: THEME.colors.primary,
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 4,
+    paddingHorizontal: 20,
   },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  submitButtonText: {
+  submitBtnText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: -0.2,
+    marginRight: 10,
   },
+  submitArrowCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Divider
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    paddingHorizontal: 12,
+  },
+
+  // Social Google Sign In Button
+  socialButtonsRow: {
+    width: '100%',
+  },
+  googleSignInBtn: {
+    width: '100%',
+    height: 52,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    shadowColor: '#000000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  googleSignInText: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    marginLeft: 10,
+  },
+
+  // Switch Link
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
+    marginTop: 22,
   },
   switchText: {
     fontSize: 14,
-    color: THEME.colors.textSecondary,
+    fontWeight: '500',
   },
   switchLink: {
     fontSize: 14,
-    fontWeight: '700',
-    color: THEME.colors.primary,
+    fontWeight: '800',
+    color: '#7C3AED',
   },
 });

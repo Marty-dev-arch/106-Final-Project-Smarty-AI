@@ -1,5 +1,5 @@
 export const GEMINI_CONFIG = {
-  defaultModel: 'gemini-2.5-flash',
+  defaultModel: 'gemini-1.5-flash',
   fallbackModel: 'gemini-1.5-flash',
   endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
   defaultApiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY || '',

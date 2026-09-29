@@ -15,14 +15,13 @@ const KEYS = {
 
 export const storageService = {
   // User Profile
-  async getUser(): Promise<UserProfile> {
+  async getUser(): Promise<UserProfile | null> {
     try {
       const data = await AsyncStorage.getItem(KEYS.USER);
       if (data) return JSON.parse(data);
-      await this.saveUser(initialUser);
-      return initialUser;
+      return null;
     } catch {
-      return initialUser;
+      return null;
     }
   },
 
@@ -34,15 +33,21 @@ export const storageService = {
     }
   },
 
+  async clearUser(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(KEYS.USER);
+    } catch (e) {
+      console.warn('Error clearing user from storage:', e);
+    }
+  },
+
   // Quizzes
   async getQuizzes(): Promise<Quiz[]> {
     try {
       const data = await AsyncStorage.getItem(KEYS.QUIZZES);
-      if (data) return JSON.parse(data);
-      await this.saveQuizzes(sampleQuizzes);
-      return sampleQuizzes;
+      return data ? JSON.parse(data) : [];
     } catch {
-      return sampleQuizzes;
+      return [];
     }
   },
 
@@ -83,11 +88,9 @@ export const storageService = {
   async getMistakes(): Promise<MistakeItem[]> {
     try {
       const data = await AsyncStorage.getItem(KEYS.MISTAKES);
-      if (data) return JSON.parse(data);
-      await AsyncStorage.setItem(KEYS.MISTAKES, JSON.stringify(sampleMistakes));
-      return sampleMistakes;
+      return data ? JSON.parse(data) : [];
     } catch {
-      return sampleMistakes;
+      return [];
     }
   },
 
@@ -116,7 +119,6 @@ export const storageService = {
     try {
       const data = await AsyncStorage.getItem(KEYS.MEDALS);
       if (data) return JSON.parse(data);
-      await AsyncStorage.setItem(KEYS.MEDALS, JSON.stringify(sampleMedals));
       return sampleMedals;
     } catch {
       return sampleMedals;

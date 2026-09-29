@@ -5,6 +5,9 @@ export interface UserProfile {
   photoURL?: string;
   isGuest: boolean;
   streak: number;
+  lastActiveDate?: string;
+  longestStreak?: number;
+  streakFreezes?: number;
   quizzesTaken: number;
   avgScore: number;
   totalXP: number;
