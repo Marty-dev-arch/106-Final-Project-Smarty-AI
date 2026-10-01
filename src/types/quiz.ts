@@ -1,6 +1,6 @@
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
-export type QuestionType = 'multiple_choice' | 'true_false' | 'enumeration' | 'essay';
+export type QuestionType = 'multiple_choice' | 'true_false' | 'enumeration';
 
 export interface Question {
   id: string;

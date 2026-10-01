@@ -160,12 +160,10 @@ export const TopBar: React.FC<TopBarProps> = ({
               >
                 <BellIcon size={24} color={isDark ? "#94A3B8" : "#1F2937"} />
                 {unreadCount > 0 && (
-                  <View style={styles.bellBadgeDot}>
-                    {unreadCount > 1 && (
-                      <Text style={styles.bellBadgeText}>
-                        {unreadCount > 9 ? '9+' : unreadCount}
-                      </Text>
-                    )}
+                  <View style={[styles.bellBadgeDot, { borderColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
+                    <Text style={styles.bellBadgeText}>
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -246,22 +244,24 @@ const styles = StyleSheet.create({
   },
   bellBadgeDot: {
     position: "absolute",
-    top: 4,
-    right: 4,
-    minWidth: 9,
-    height: 9,
-    borderRadius: 4.5,
+    top: 1,
+    right: 1,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: "#EF4444",
     borderWidth: 1.5,
     borderColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 2,
+    paddingHorizontal: 3,
   },
   bellBadgeText: {
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: "900",
     color: "#FFFFFF",
+    textAlign: "center",
+    lineHeight: 11,
   },
   profileAvatar: {
     width: 36,
