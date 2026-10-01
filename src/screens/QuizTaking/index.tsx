@@ -63,16 +63,22 @@ export default function QuizTaking() {
       startMistakePractice();
     } else if (route.params?.quizId) {
       const targetId = route.params.quizId;
-      const found = quizzes.find((q) => q.id === targetId);
-      if (found && found.id !== activeQuiz?.id) {
-        startQuiz(found);
+      if (activeQuiz?.id !== targetId) {
+        const found = quizzes.find((q) => q.id === targetId);
+        if (found) {
+          startQuiz(found);
+        }
+      } else {
+        setCurrentQuestionIndex(0);
       }
     }
-  }, [route.params?.quizId, route.params?.isMistakePractice]);
+  }, [route.params?.quizId, route.params?.isMistakePractice, quizzes]);
 
-  // Determine active quiz (no mock fallbacks)
+  // Determine active quiz (prioritize targetedQuizId)
   const targetedQuizId = route.params?.quizId;
-  const quiz = activeQuiz || (targetedQuizId ? quizzes.find((q) => q.id === targetedQuizId) : undefined);
+  const quiz = targetedQuizId
+    ? (activeQuiz?.id === targetedQuizId ? activeQuiz : quizzes.find((q) => q.id === targetedQuizId) || activeQuiz)
+    : activeQuiz;
 
   // Track quiet elapsed time spent
   useEffect(() => {

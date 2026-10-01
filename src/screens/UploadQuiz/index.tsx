@@ -103,14 +103,12 @@ export default function UploadQuiz() {
         if (file) {
           const extractedDoc = await documentExtractor.extractTextFromFile(file);
           const baseName = extractedDoc.fileName.replace(/\.[^/.]+$/, "");
-          if (!title.trim()) {
-            // Use the first slide title if available, otherwise the filename
-            const derivedTitle =
-              (extractedDoc.slides?.[0]?.title || baseName)
-                .replace(/\b\d+\s*slides\b/gi, '')
-                .trim();
-            setTitle(derivedTitle || baseName);
-          }
+          // Derive fresh title from first slide or filename
+          const derivedTitle =
+            (extractedDoc.slides?.[0]?.title || baseName)
+              .replace(/\b\d+\s*slides\b/gi, '')
+              .trim();
+          setTitle(derivedTitle || baseName);
 
           setSourceText(extractedDoc.text);
           setUploadedSlides(extractedDoc.slides && extractedDoc.slides.length > 0 ? extractedDoc.slides : undefined);
@@ -145,6 +143,7 @@ export default function UploadQuiz() {
     setUploadedFile(null);
     setSourceText("");
     setUploadedSlides(undefined);
+    setTitle("");
   };
 
   const toggleType = (type: QuestionType) => {

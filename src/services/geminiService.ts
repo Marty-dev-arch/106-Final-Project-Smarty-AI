@@ -196,9 +196,19 @@ export const geminiService = {
     // ── 1. If we have a valid API key, generate with Gemini AI ───────────────
     const apiKey = await storageService.getGeminiApiKey();
 
-    if (isRealApiKey(apiKey) && topicOrDocumentText.trim().length > 10) {
+    let content = topicOrDocumentText.trim();
+    if (slides && slides.length > 0) {
+      const slideText = slides
+        .map((s) => `[Slide ${s.slideIndex}${s.title ? `: ${s.title}` : ''}]\n${s.lines.join('\n')}`)
+        .join('\n\n');
+      if (slideText.trim().length > 0) {
+        content = slideText;
+      }
+    }
+
+    if (isRealApiKey(apiKey) && content.length > 5) {
       try {
-        const prompt = buildQuizPrompt(topicOrDocumentText, count, difficulty, questionTypes, quizTitle);
+        const prompt = buildQuizPrompt(content, count, difficulty, questionTypes, quizTitle);
         const body = {
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
           generationConfig: {
