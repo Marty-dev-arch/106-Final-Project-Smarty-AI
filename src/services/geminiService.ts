@@ -24,14 +24,15 @@ const isRealApiKey = (key?: string): boolean => {
   );
 };
 
-/** Real Gemini API model names — ordered by speed (fast → capable) */
+/** Real Gemini API model names — ordered by speed & reliability */
 const GEMINI_MODELS = [
-  'gemini-2.0-flash-lite',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash-8b',
-  'gemini-1.5-flash',
-  'gemini-2.5-flash-lite-preview-06-17',
-  'gemini-2.5-flash',
+  'gemini-3.5-flash',
+  'gemini-flash-latest',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-lite-latest',
+  'gemini-3.8-flash',
+  'gemini-3.6-flash',
+  'gemini-2.5-flash-lite',
 ];
 
 function deriveQuizTitle(text: string, slides?: SlideBlock[]): string {
@@ -144,28 +145,21 @@ async function fetchGemini(
   const overallController = new AbortController();
   const overallTimer = setTimeout(() => overallController.abort(), totalTimeoutMs);
 
-  // AQ. prefix = Google OAuth2 "auth key" → must use Authorization: Bearer header
-  // AIza prefix = simple API key → use x-goog-api-key header or ?key= param
-  const isOAuthKey = apiKey.startsWith('AQ.');
-  const authHeaders: Record<string, string> = isOAuthKey
-    ? { 'Authorization': `Bearer ${apiKey}` }
-    : { 'x-goog-api-key': apiKey };
-
   for (const model of GEMINI_MODELS) {
     if (overallController.signal.aborted) break;
 
     const modelController = new AbortController();
     const modelTimer = setTimeout(() => modelController.abort(), 7000);
 
-    // Build URL: OAuth keys don't use ?key= param
-    const url = isOAuthKey
-      ? `${GEMINI_CONFIG.endpoint}/${model}:generateContent`
-      : `${GEMINI_CONFIG.endpoint}/${model}:generateContent?key=${apiKey}`;
+    const url = `${GEMINI_CONFIG.endpoint}/${model}:generateContent?key=${apiKey}`;
 
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify(body),
         signal: modelController.signal,
       });
