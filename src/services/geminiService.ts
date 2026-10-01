@@ -22,16 +22,18 @@ const isRealApiKey = (key?: string): boolean => {
   );
 };
 
-/** Active models supported on Gemini API */
+/** Active models supported on Gemini API (ordered by availability and speed) */
 const GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-latest',
-  'gemini-1.5-pro',
   'gemini-3.1-flash-lite-preview',
-  'gemini-3.6-flash',
-  'gemini-3.7-flash',
   'gemini-flash-latest',
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
+  'gemma-4-26b-a4b-it',
 ];
 
 function deriveQuizTitle(text: string, slides?: SlideBlock[]): string {
