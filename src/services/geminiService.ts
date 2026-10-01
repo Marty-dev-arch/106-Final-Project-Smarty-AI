@@ -1,7 +1,6 @@
 import { GEMINI_CONFIG } from '../config/gemini';
 import { Quiz, Question, Difficulty, QuestionType } from '../types/quiz';
 import { storageService } from './storageService';
-import { nlpQuizEngine, NlpQuizParams, FactItem } from './nlpQuizEngine';
 import { SlideBlock } from '../utils/documentExtractor';
 
 interface GenerateQuizParams {
@@ -23,74 +22,123 @@ const isRealApiKey = (key?: string): boolean => {
   );
 };
 
-/** Active models supported on v1beta API endpoint */
+/** Active models supported on Gemini API */
 const GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-latest',
+  'gemini-1.5-pro',
   'gemini-3.1-flash-lite-preview',
   'gemini-3.6-flash',
   'gemini-3.7-flash',
-  'gemini-3.8-flash',
-  'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-3-flash-preview',
   'gemini-flash-latest',
-  'gemini-2.5-flash',
-  'gemma-4-26b-a4b-it',
 ];
 
-/** Build the focused prompt that sends extracted facts and material to Gemini */
-function buildGroundedPrompt(
-  facts: FactItem[],
-  topicOrDocumentText: string,
+function deriveQuizTitle(text: string, slides?: SlideBlock[]): string {
+  if (slides && slides.length > 0) {
+    const firstTitle = slides[0].title?.trim();
+    if (firstTitle && firstTitle.length > 3 && firstTitle.length < 80) {
+      return firstTitle.replace(/^#+\s*/, '');
+    }
+  }
+  const firstLine = text.trim().split('\n')[0]?.trim();
+  if (firstLine && firstLine.length > 3 && firstLine.length < 70) {
+    return firstLine.replace(/^#+\s*/, '');
+  }
+  return 'Study Quiz';
+}
+
+function detectCategory(title: string, text: string): string {
+  const combined = (title + ' ' + text.slice(0, 500)).toLowerCase();
+  if (/fiber|optic|telecom|laser|wavelength|attenuation/i.test(combined)) return 'Fiber Optics & Telecom';
+  if (/cisco|network|routing|switch|vlan|subnet|ip|osi|tcp|udp/i.test(combined)) return 'Computer Networking';
+  if (/code|programming|react|javascript|python|sql|html|css|developer|algorithm/i.test(combined)) return 'Computer Science & Software';
+  if (/bio|cell|organ|gene|dna|med|health|body|anatomy/i.test(combined)) return 'Biology & Health Sciences';
+  if (/math|calculus|algebra|physics|geometry|equation/i.test(combined)) return 'Mathematics & Physics';
+  if (/history|war|century|civilization|government|revolution/i.test(combined)) return 'History & Social Studies';
+  if (/business|finance|marketing|accounting|management|economic/i.test(combined)) return 'Business & Finance';
+  return 'General Knowledge';
+}
+
+function validateQuestions(rawQuestions: any[], fallbackCategory: string): Question[] {
+  const cleanQuestions: Question[] = [];
+
+  for (let i = 0; i < rawQuestions.length; i++) {
+    const q = rawQuestions[i];
+    if (!q || typeof q.prompt !== 'string' || q.prompt.trim().length < 5) continue;
+
+    let options: string[] = [];
+    if (Array.isArray(q.options) && q.options.length >= 2) {
+      options = q.options.map((o: any) => String(o || '').trim()).filter((o: string) => o.length > 0);
+    }
+
+    if (q.type === 'true_false' || (!options.length && q.type === 'true_false')) {
+      options = ['True', 'False'];
+    }
+
+    if (options.length < 2) continue;
+
+    let correctIndex = typeof q.correctAnswer === 'number' ? q.correctAnswer : 0;
+    if (correctIndex < 0 || correctIndex >= options.length) {
+      correctIndex = 0;
+    }
+
+    cleanQuestions.push({
+      id: `q_gemini_${Date.now()}_${i + 1}`,
+      type: q.type === 'true_false' ? 'true_false' : 'multiple_choice',
+      prompt: q.prompt.trim(),
+      options,
+      correctAnswer: correctIndex,
+      explanation: typeof q.explanation === 'string' ? q.explanation.trim() : undefined,
+      category: typeof q.category === 'string' && q.category.trim() ? q.category.trim() : fallbackCategory,
+    });
+  }
+
+  return cleanQuestions;
+}
+
+/** Build the prompt for Gemini AI */
+function buildQuizPrompt(
+  content: string,
   count: number,
   difficulty: Difficulty,
   questionTypes: QuestionType[],
   quizTitle: string
 ): string {
-  const sourceLines = facts
-    .slice(0, Math.min(facts.length, count * 3))
-    .map(
-      (f, i) =>
-        `[Fact ${i + 1} — ${f.concept}]\n${f.fact}`
-    )
-    .join('\n\n');
+  const contentExcerpt = content.slice(0, 6000);
 
-  const contextExcerpt = topicOrDocumentText ? topicOrDocumentText.slice(0, 3000) : '';
+  return `You are a high-level academic professor and quiz creator. Generate EXACTLY ${count} comprehensive, accurate, and engaging quiz questions based strictly on the provided material.
 
-  return `You are a university professor creating an exam quiz. Generate EXACTLY ${count} high-quality, professional quiz questions based strictly on the provided learning material.
-
-STRICT QUESTION GUIDELINES:
-1. Every question prompt MUST be a complete, well-formed question (e.g. "Which device operates at the Data Link layer to forward frames within a LAN?").
-2. DO NOT output fill-in-the-blank questions that are just blanks or incomplete fragments.
-3. For multiple_choice:
-   - Provide exactly 4 plausible, meaningful, distinct options.
-   - All options must be formatted in parallel grammatical structure.
-   - Exactly one option is correct.
-4. For true_false: options must be ["True", "False"].
-5. correctAnswer is the 0-based index of the correct option.
-6. Provide a 1-2 sentence explanation citing the learning material.
-7. Requested question types: ${questionTypes.join(', ')}.
-8. Difficulty: ${difficulty}.
-
-LEARNING MATERIAL / EXTRACTED FACTS:
+MATERIAL / TOPIC:
 """
-${sourceLines || contextExcerpt}
+${contentExcerpt}
 """
 
-Quiz Title: ${quizTitle}
+QUIZ CONFIGURATION:
+- Title: ${quizTitle}
+- Number of Questions: ${count}
+- Difficulty: ${difficulty}
+- Allowed Question Types: ${questionTypes.join(', ')}
 
-Return ONLY valid JSON matching this schema (no markdown fences, no comments):
+REQUIREMENTS:
+1. Every question prompt must be a complete, well-formed question.
+2. For multiple_choice questions: provide exactly 4 distinct, plausible options.
+3. For true_false questions: options MUST be ["True", "False"].
+4. correctAnswer must be the 0-based index of the correct option (0, 1, 2, or 3).
+5. Provide a clear 1-2 sentence explanation explaining why the correct answer is right.
+6. Return ONLY a valid JSON object matching this schema (no markdown fences, no extra text):
+
 {
   "title": "${quizTitle}",
   "category": "string",
   "description": "string",
   "questions": [
     {
-      "id": "q1",
       "type": "multiple_choice",
-      "prompt": "Full question statement here?",
+      "prompt": "Question text here?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": 0,
-      "explanation": "Explanation here...",
+      "explanation": "Explanation here.",
       "category": "string"
     }
   ]
@@ -140,27 +188,15 @@ async function fetchGemini(
 export const geminiService = {
   async generateQuiz(params: GenerateQuizParams): Promise<Quiz> {
     const { topicOrDocumentText, slides, count, difficulty, questionTypes, title } = params;
+    const quizTitle = title || deriveQuizTitle(topicOrDocumentText, slides);
+    const category = detectCategory(quizTitle, topicOrDocumentText);
 
-    const nlpParams: NlpQuizParams = {
-      topicOrDocumentText,
-      slides,
-      count,
-      difficulty,
-      questionTypes,
-      title,
-      timeLimitMinutes: params.timeLimitMinutes,
-    };
-
-    // ── 1. Local NLP: extract structured facts from slides/text ──────────────
-    const facts: FactItem[] = nlpQuizEngine.extractFacts(nlpParams);
-    const quizTitle = nlpQuizEngine.deriveTitle(topicOrDocumentText, slides) || title || 'Study Quiz';
-
-    // ── 2. If we have a real API key, send to Gemini AI ─────────────────────
+    // ── 1. If we have a valid API key, generate with Gemini AI ───────────────
     const apiKey = await storageService.getGeminiApiKey();
 
-    if (isRealApiKey(apiKey) && (facts.length > 0 || topicOrDocumentText.trim().length > 20)) {
+    if (isRealApiKey(apiKey) && topicOrDocumentText.trim().length > 10) {
       try {
-        const prompt = buildGroundedPrompt(facts, topicOrDocumentText, count, difficulty, questionTypes, quizTitle);
+        const prompt = buildQuizPrompt(topicOrDocumentText, count, difficulty, questionTypes, quizTitle);
         const body = {
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
           generationConfig: {
@@ -178,29 +214,23 @@ export const geminiService = {
           if (rawText) {
             let parsed: any = null;
             try {
-              // Strip possible markdown fences
               const clean = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
               parsed = JSON.parse(clean);
             } catch {
-              // JSON parse failed → fall through to local
+              // JSON parse failed
             }
 
             if (parsed?.questions && Array.isArray(parsed.questions)) {
-              const validated = nlpQuizEngine.validateGeminiQuestions(
-                parsed.questions,
-                facts,
-                quizTitle
-              );
+              const validated = validateQuestions(parsed.questions, parsed.category || category);
 
-              if (validated.length >= Math.min(count, 3)) {
+              if (validated.length > 0) {
                 return {
                   id: 'quiz_' + Date.now(),
                   title: parsed.title || quizTitle,
                   description:
                     parsed.description ||
-                    `AI-generated quiz from your uploaded document (${difficulty})`,
-                  category:
-                    parsed.category || nlpQuizEngine.detectCategory(quizTitle, topicOrDocumentText),
+                    `AI-generated quiz on ${quizTitle} (${difficulty})`,
+                  category: parsed.category || category,
                   difficulty,
                   questionTypes,
                   questionsCount: validated.length,
@@ -214,12 +244,12 @@ export const geminiService = {
           }
         }
       } catch (err) {
-        console.warn('[geminiService] Gemini call failed, using local NLP:', err);
+        console.warn('[geminiService] Gemini call failed, using smart fallback:', err);
       }
     }
 
-    // ── 3. Local fallback: build quiz purely from extracted facts ────────────
-    return nlpQuizEngine.generateQuizFromFacts(nlpParams, facts);
+    // ── 2. Fallback: build high-quality question set ───────────────────────────
+    return geminiService.generateSmartFallback(params);
   },
 
   generateSmartFallback(params: GenerateQuizParams): Quiz {
@@ -572,7 +602,7 @@ export const geminiService = {
     return {
       id: 'quiz_' + Date.now(),
       title: safeTitle,
-      description: `Synthesized with Smarty AI Smart Engine (${difficulty.toUpperCase()})`,
+      description: `Generated with Smarty AI Engine (${difficulty.toUpperCase()})`,
       category: categoryName,
       difficulty,
       questionTypes,
@@ -584,4 +614,3 @@ export const geminiService = {
     };
   },
 };
-

@@ -1,6 +1,6 @@
 // ─── documentExtractor.ts ────────────────────────────────────────────────────
-// Responsible ONLY for extracting clean, structured text from uploaded files.
-// Returns SlideBlock[] so the NLP layer can work per-slide/per-section.
+// Responsible for extracting clean, structured text from uploaded files.
+// Returns SlideBlock[] for per-slide / per-section structured content.
 
 export interface SlideBlock {
   /** Slide number (1-based) or section index for non-PPTX files */
@@ -14,9 +14,9 @@ export interface SlideBlock {
 export interface ExtractedDocument {
   fileName: string;
   size: string;
-  /** Flat joined text for quick display / NLP input */
+  /** Flat joined text for display and AI quiz generation */
   text: string;
-  /** Structured per-slide blocks for high-quality NLP */
+  /** Structured per-slide blocks */
   slides: SlideBlock[];
 }
 
@@ -240,7 +240,7 @@ async function extractDocxBlocks(file: File): Promise<SlideBlock[]> {
 
   if (lines.length === 0) return [];
 
-  // Group every 15 lines into a virtual "slide" block for the NLP layer
+  // Group every 15 lines into a virtual "slide" block
   const blocks: SlideBlock[] = [];
   const chunkSize = 15;
   for (let i = 0; i < lines.length; i += chunkSize) {
