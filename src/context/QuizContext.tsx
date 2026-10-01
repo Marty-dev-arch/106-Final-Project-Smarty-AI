@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Quiz, Question, QuizAttempt, MistakeItem, Medal, Difficulty, QuestionType } from '../types/quiz';
 import { quizService } from '../services/quizService';
+import { storageService } from '../services/storageService';
 import { geminiService } from '../services/geminiService';
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
@@ -298,6 +299,18 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setMistakes([]);
       setUserAnswers({});
       setCurrentQuestionIndex(0);
+
+      // Reset User profile quiz stats locally and refresh auth context
+      const userProfile = await storageService.getUser();
+      if (userProfile) {
+        const updatedUser = {
+          ...userProfile,
+          quizzesTaken: 0,
+          avgScore: 0,
+        };
+        await storageService.saveUser(updatedUser);
+      }
+      await refreshUser();
     } catch (e) {
       console.warn('Error deleting all quizzes and files:', e);
     } finally {

@@ -405,7 +405,31 @@ export default function ProfileSetiing() {
   };
 
   // Delete all quizzes and files
+  const executeDeleteAll = async () => {
+    setIsDeletingData(true);
+    setModalError(null);
+    try {
+      await deleteAllQuizzesAndFiles();
+      setModalSuccess("All quizzes and uploaded files deleted successfully!");
+      setTimeout(() => setModalSuccess(null), 3500);
+    } catch (err: any) {
+      setModalError(err.message || "Failed to delete quizzes and files.");
+    } finally {
+      setIsDeletingData(false);
+    }
+  };
+
   const handleDeleteAllQuizzesAndFiles = () => {
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm(
+        "Are you sure you want to delete all your quizzes, attempts, and uploaded documents? This will delete them locally and from your Firestore account permanently."
+      );
+      if (confirmed) {
+        executeDeleteAll();
+      }
+      return;
+    }
+
     Alert.alert(
       "Delete All Quizzes & Files",
       "Are you sure you want to delete all your quizzes, attempts, and uploaded documents? This will delete them locally AND in Firestore for your account.",
@@ -414,19 +438,7 @@ export default function ProfileSetiing() {
         {
           text: "Delete All",
           style: "destructive",
-          onPress: async () => {
-            setIsDeletingData(true);
-            setModalError(null);
-            try {
-              await deleteAllQuizzesAndFiles();
-              setModalSuccess("All quizzes and files deleted successfully.");
-              setTimeout(() => setModalSuccess(null), 3500);
-            } catch (err: any) {
-              setModalError(err.message || "Failed to delete quizzes and files.");
-            } finally {
-              setIsDeletingData(false);
-            }
-          },
+          onPress: executeDeleteAll,
         },
       ]
     );
