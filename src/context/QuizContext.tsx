@@ -18,8 +18,13 @@ interface QuizContextType {
   startQuiz: (quiz: Quiz) => void;
   nextQuestion: () => boolean; // returns true if has more, false if finished
   prevQuestion: () => void;
+  setCurrentQuestionIndex: (index: number) => void;
   selectAnswer: (questionId: string, answer: string | number) => void;
   finishQuiz: (timeSpentSeconds?: number) => Promise<QuizAttempt | null>;
+  updateActiveQuiz: (updatedQuiz: Quiz) => Promise<void>;
+  updateCurrentQuestion: (updatedQuestion: Question) => Promise<void>;
+  addNewQuestionToQuiz: (newQuestion?: Partial<Question>) => Promise<void>;
+  deleteQuestionFromQuiz: (questionIndex: number) => Promise<void>;
   generateQuizWithAI: (params: {
     topicOrDocumentText: string;
     slides?: SlideBlock[];
@@ -206,6 +211,60 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return practiceQuiz;
   };
 
+  const updateActiveQuiz = async (updatedQuiz: Quiz) => {
+    setActiveQuiz(updatedQuiz);
+    setQuizzes((prev) => prev.map((q) => (q.id === updatedQuiz.id ? updatedQuiz : q)));
+    await quizService.updateQuiz(updatedQuiz);
+  };
+
+  const updateCurrentQuestion = async (updatedQuestion: Question) => {
+    if (!activeQuiz) return;
+    const questions = [...activeQuiz.questions];
+    questions[currentQuestionIndex] = updatedQuestion;
+    const updatedQuiz: Quiz = {
+      ...activeQuiz,
+      questions,
+      questionsCount: questions.length,
+    };
+    await updateActiveQuiz(updatedQuiz);
+  };
+
+  const addNewQuestionToQuiz = async (newQuestion?: Partial<Question>) => {
+    if (!activeQuiz) return;
+    const qCount = activeQuiz.questions.length + 1;
+    const blankQuestion: Question = {
+      id: 'q_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+      type: 'multiple_choice',
+      prompt: newQuestion?.prompt || `New Question ${qCount}`,
+      options: newQuestion?.options || ['Option A', 'Option B', 'Option C', 'Option D'],
+      correctAnswer: newQuestion?.correctAnswer !== undefined ? newQuestion.correctAnswer : 0,
+      explanation: newQuestion?.explanation || '',
+      ...newQuestion,
+    };
+    const updatedQuestions = [...activeQuiz.questions, blankQuestion];
+    const updatedQuiz: Quiz = {
+      ...activeQuiz,
+      questions: updatedQuestions,
+      questionsCount: updatedQuestions.length,
+    };
+    await updateActiveQuiz(updatedQuiz);
+    setCurrentQuestionIndex(updatedQuestions.length - 1);
+  };
+
+  const deleteQuestionFromQuiz = async (questionIndex: number) => {
+    if (!activeQuiz || activeQuiz.questions.length <= 1) return;
+    const updatedQuestions = activeQuiz.questions.filter((_, i) => i !== questionIndex);
+    const updatedQuiz: Quiz = {
+      ...activeQuiz,
+      questions: updatedQuestions,
+      questionsCount: updatedQuestions.length,
+    };
+    await updateActiveQuiz(updatedQuiz);
+    if (currentQuestionIndex >= updatedQuestions.length) {
+      setCurrentQuestionIndex(Math.max(0, updatedQuestions.length - 1));
+    }
+  };
+
   return (
     <QuizContext.Provider
       value={{
@@ -220,8 +279,13 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
         startQuiz,
         nextQuestion,
         prevQuestion,
+        setCurrentQuestionIndex,
         selectAnswer,
         finishQuiz,
+        updateActiveQuiz,
+        updateCurrentQuestion,
+        addNewQuestionToQuiz,
+        deleteQuestionFromQuiz,
         generateQuizWithAI,
         startMistakePractice,
         refreshData,

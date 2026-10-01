@@ -111,6 +111,24 @@ export const quizService = {
     }
   },
 
+  /**
+   * Update an existing quiz in local storage and Firestore.
+   */
+  async updateQuiz(quiz: Quiz): Promise<void> {
+    await storageService.updateQuiz(quiz);
+    if (isFirebaseInitialized && db) {
+      try {
+        const docRef = userQuizDocPath(this.currentUid, quiz.id);
+        if (docRef) {
+          setDoc(docRef, { ...quiz, updatedAt: new Date().toISOString() }, { merge: true })
+            .catch((e) => console.warn('[quizService] Firestore update notice:', e));
+        }
+      } catch (err) {
+        console.warn('[quizService] Firestore update error:', err);
+      }
+    }
+  },
+
   async recordQuizAttempt(
     attempt: QuizAttempt
   ): Promise<{ updatedStreak: number; newAvgScore: number }> {

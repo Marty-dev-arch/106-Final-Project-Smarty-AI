@@ -65,6 +65,19 @@ export const storageService = {
     await this.saveQuizzes(updated);
   },
 
+  async updateQuiz(quiz: Quiz): Promise<void> {
+    const list = await this.getQuizzes();
+    const index = list.findIndex((q) => q.id === quiz.id);
+    let updated: Quiz[];
+    if (index >= 0) {
+      updated = [...list];
+      updated[index] = quiz;
+    } else {
+      updated = [quiz, ...list];
+    }
+    await this.saveQuizzes(updated);
+  },
+
   // Attempts
   async getAttempts(): Promise<QuizAttempt[]> {
     try {
