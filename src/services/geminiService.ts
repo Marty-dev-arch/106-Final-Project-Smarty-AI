@@ -24,18 +24,14 @@ const isRealApiKey = (key?: string): boolean => {
   );
 };
 
-/** Active models supported on Gemini API (ordered by availability and speed) */
+/** Real Gemini API model names — ordered by speed (fast → capable) */
 const GEMINI_MODELS = [
-  'gemini-3.1-flash-lite-preview',
-  'gemini-flash-latest',
-  'gemini-3.8-flash',
-  'gemini-3.7-flash',
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash-lite',
-  'gemma-4-26b-a4b-it',
+  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-1.5-flash',
+  'gemini-2.5-flash-lite-preview-06-17',
+  'gemini-2.5-flash',
 ];
 
 function deriveQuizTitle(text: string, slides?: SlideBlock[]): string {
@@ -246,18 +242,23 @@ export const geminiService = {
             }
           }
         }
+        const hasDocumentContent = (slides && slides.length > 0) || topicOrDocumentText.trim().length > 100;
+
+        // If we got back null (all models returned non-OK), that's still a failure
+        if (!response && hasDocumentContent) {
+          throw new Error('Gemini AI is currently unavailable (503). Please try again in a moment.');
+        }
+
       } catch (err) {
         console.warn('[geminiService] Gemini call failed:', err);
-        // If we have real document content, don't silently fall to a keyword pool.
-        // Re-throw so the UI shows a proper error message.
         const hasDocumentContent = (slides && slides.length > 0) || topicOrDocumentText.trim().length > 100;
         if (hasDocumentContent) {
-          throw new Error('Failed to connect to Gemini AI. Please check your API key and internet connection, then try again.');
+          throw err; // surface the real error to the UI
         }
       }
     }
 
-    // ── Fallback only when there is NO real document content (bare topic title) ──
+    // Fallback only for bare topic-only quizzes (no file content)
     return geminiService.generateSmartFallback(params);
   },
 
