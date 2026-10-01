@@ -571,47 +571,80 @@ export default function QuizTaking() {
               <Text style={styles.questionTitle}>{currentQ.prompt}</Text>
             </View>
 
-            {/* Options List */}
+            {/* Options List / Text Input for Enumeration & Essay */}
             <View style={styles.optionsContainer}>
-              {currentQ.options.map((option, index) => {
-                const isSelected = selectedAnswer === index;
-                const letter = OPTION_LETTERS[index] || `${index + 1}`;
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.optionCard,
-                      isSelected ? styles.optionCardSelected : styles.optionCardDefault,
-                    ]}
-                    onPress={() => {
-                      triggerHaptic.selection();
-                      selectAnswer(currentQ.id, index);
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <View style={[styles.previewLetterBadge, isSelected && styles.previewLetterBadgeSelected]}>
-                      <Text style={[styles.previewLetterText, isSelected && styles.previewLetterTextSelected]}>
-                        {letter}
-                      </Text>
-                    </View>
-
-                    <Text
+              {currentQ.type === "enumeration" ? (
+                <View style={styles.textInputCard}>
+                  <Text style={styles.textInputLabel}>ENUMERATION ANSWER</Text>
+                  <TextInput
+                    style={styles.textInputAnswer}
+                    placeholder="Type your short answer or term here..."
+                    placeholderTextColor="#94A3B8"
+                    value={String(userAnswers[currentQ.id] || "")}
+                    onChangeText={(text) => selectAnswer(currentQ.id, text)}
+                  />
+                  <Text style={styles.textInputHint}>
+                    💡 Enter the exact term, word, or concise answer.
+                  </Text>
+                </View>
+              ) : currentQ.type === "essay" ? (
+                <View style={styles.textInputCard}>
+                  <Text style={styles.textInputLabel}>ESSAY RESPONSE</Text>
+                  <TextInput
+                    style={[styles.textInputAnswer, styles.textInputEssay]}
+                    placeholder="Write your detailed essay or concept explanation here..."
+                    placeholderTextColor="#94A3B8"
+                    value={String(userAnswers[currentQ.id] || "")}
+                    onChangeText={(text) => selectAnswer(currentQ.id, text)}
+                    multiline
+                    numberOfLines={6}
+                    textAlignVertical="top"
+                  />
+                  <Text style={styles.textInputHint}>
+                    ✍️ Write your response covering key points.
+                  </Text>
+                </View>
+              ) : (
+                currentQ.options.map((option, index) => {
+                  const isSelected = selectedAnswer === index;
+                  const letter = OPTION_LETTERS[index] || `${index + 1}`;
+                  return (
+                    <TouchableOpacity
+                      key={index}
                       style={[
-                        styles.optionText,
-                        isSelected ? styles.optionTextSelected : styles.optionTextDefault,
+                        styles.optionCard,
+                        isSelected ? styles.optionCardSelected : styles.optionCardDefault,
                       ]}
+                      onPress={() => {
+                        triggerHaptic.selection();
+                        selectAnswer(currentQ.id, index);
+                      }}
+                      activeOpacity={0.85}
                     >
-                      {option}
-                    </Text>
+                      <View style={[styles.previewLetterBadge, isSelected && styles.previewLetterBadgeSelected]}>
+                        <Text style={[styles.previewLetterText, isSelected && styles.previewLetterTextSelected]}>
+                          {letter}
+                        </Text>
+                      </View>
 
-                    {isSelected ? (
-                      <Ionicons name="checkmark-circle" size={22} color="#6D44F2" />
-                    ) : (
-                      <View style={styles.emptyCircleIndicator} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
+                      <Text
+                        style={[
+                          styles.optionText,
+                          isSelected ? styles.optionTextSelected : styles.optionTextDefault,
+                        ]}
+                      >
+                        {option}
+                      </Text>
+
+                      {isSelected ? (
+                        <Ionicons name="checkmark-circle" size={22} color="#6D44F2" />
+                      ) : (
+                        <View style={styles.emptyCircleIndicator} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
             </View>
 
             {/* ─── PROMINENT "ADD NEW QUESTION PAGE" BUTTON ON THE LAST QUESTION ── */}
@@ -1084,6 +1117,41 @@ const styles = StyleSheet.create({
   optionsContainer: {
     gap: 10,
     marginBottom: 16,
+  },
+  textInputCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    padding: 16,
+  },
+  textInputLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#6D44F2",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  textInputAnswer: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: "#0F172A",
+    fontWeight: "600",
+  },
+  textInputEssay: {
+    minHeight: 120,
+    lineHeight: 22,
+  },
+  textInputHint: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 8,
+    fontWeight: "500",
   },
   optionCard: {
     flexDirection: "row",

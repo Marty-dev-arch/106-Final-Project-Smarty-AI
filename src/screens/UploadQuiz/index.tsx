@@ -462,6 +462,7 @@ export default function UploadQuiz() {
                 { key: "multiple_choice" as QuestionType, label: "Multiple choice" },
                 { key: "true_false" as QuestionType, label: "True / False" },
                 { key: "enumeration" as QuestionType, label: "Enumeration" },
+                { key: "essay" as QuestionType, label: "Essay" },
               ]).map(({ key, label }) => {
                 const isActive = selectedTypes.includes(key);
                 return (

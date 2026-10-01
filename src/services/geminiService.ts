@@ -26,10 +26,10 @@ const isRealApiKey = (key?: string): boolean => {
 
 /** Real Gemini API model names — ordered by speed & availability */
 const GEMINI_MODELS = [
-  'gemini-flash-lite-latest',
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
-  'gemini-3.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-1.5-pro',
 ];
 
 function deriveQuizTitle(text: string, slides?: SlideBlock[]): string {
@@ -55,28 +55,65 @@ function validateQuestions(rawQuestions: any[], fallbackCategory: string): Quest
     const q = rawQuestions[i];
     if (!q || typeof q.prompt !== 'string' || q.prompt.trim().length < 5) continue;
 
+    const rawType = String(q.type || '').toLowerCase();
+    let qType: QuestionType = 'multiple_choice';
+    if (rawType.includes('true') || rawType.includes('false')) {
+      qType = 'true_false';
+    } else if (rawType.includes('enum')) {
+      qType = 'enumeration';
+    } else if (rawType.includes('essay')) {
+      qType = 'essay';
+    } else if (rawType.includes('choice') || rawType.includes('multiple')) {
+      qType = 'multiple_choice';
+    }
+
     let options: string[] = [];
-    if (Array.isArray(q.options) && q.options.length >= 2) {
-      options = q.options.map((o: any) => String(o || '').trim()).filter((o: string) => o.length > 0);
-    }
+    let correctAnswer: string | number = 0;
 
-    if (q.type === 'true_false' || (!options.length && q.type === 'true_false')) {
+    if (qType === 'multiple_choice') {
+      if (Array.isArray(q.options) && q.options.length >= 2) {
+        options = q.options.map((o: any) => String(o || '').trim()).filter((o: string) => o.length > 0);
+      }
+      if (options.length < 2) {
+        options = ['Option A', 'Option B', 'Option C', 'Option D'];
+      }
+      let correctIndex = typeof q.correctAnswer === 'number' ? q.correctAnswer : 0;
+      if (typeof q.correctAnswer === 'string' && options.length > 0) {
+        const idx = options.findIndex(o => o.toLowerCase() === q.correctAnswer.toLowerCase());
+        correctIndex = idx >= 0 ? idx : 0;
+      }
+      if (correctIndex < 0 || correctIndex >= options.length) correctIndex = 0;
+      correctAnswer = correctIndex;
+
+    } else if (qType === 'true_false') {
       options = ['True', 'False'];
-    }
+      let correctIndex = 0;
+      if (typeof q.correctAnswer === 'number') {
+        correctIndex = q.correctAnswer === 1 ? 1 : 0;
+      } else if (typeof q.correctAnswer === 'string') {
+        correctIndex = q.correctAnswer.trim().toLowerCase() === 'false' ? 1 : 0;
+      }
+      correctAnswer = correctIndex;
 
-    if (options.length < 2) continue;
+    } else if (qType === 'enumeration') {
+      options = [];
+      correctAnswer = typeof q.correctAnswer === 'string' && q.correctAnswer.trim()
+        ? q.correctAnswer.trim()
+        : (Array.isArray(q.options) ? q.options.join(', ') : 'Correct Answer');
 
-    let correctIndex = typeof q.correctAnswer === 'number' ? q.correctAnswer : 0;
-    if (correctIndex < 0 || correctIndex >= options.length) {
-      correctIndex = 0;
+    } else if (qType === 'essay') {
+      options = [];
+      correctAnswer = typeof q.correctAnswer === 'string' && q.correctAnswer.trim()
+        ? q.correctAnswer.trim()
+        : 'Model solution text covering core concepts.';
     }
 
     cleanQuestions.push({
       id: `q_gemini_${Date.now()}_${i + 1}`,
-      type: q.type === 'true_false' ? 'true_false' : 'multiple_choice',
+      type: qType,
       prompt: q.prompt.trim(),
       options,
-      correctAnswer: correctIndex,
+      correctAnswer,
       explanation: typeof q.explanation === 'string' ? q.explanation.trim() : undefined,
       category: typeof q.category === 'string' && q.category.trim() ? q.category.trim() : fallbackCategory,
     });
@@ -96,9 +133,9 @@ function buildQuizPrompt(
   const contentExcerpt = content.slice(0, 6000);
 
   const difficultyInstructions = {
-    easy: 'EASY MODE: Focus on direct facts, key terms, definitions, and basic recall from the text. Distractors (wrong choices) should be simple and easy to eliminate.',
-    medium: 'MEDIUM MODE: Focus on conceptual understanding, cause-and-effect, and standard application of rules/formulas. Distractors should represent plausible common missteps.',
-    hard: 'HARD MODE: Focus on multi-step problem solving, critical analysis, edge cases, and synthesis of multiple concepts. Distractors must be subtle, highly plausible, and test deep mastery.',
+    easy: 'EASY MODE: Focus on direct facts, key terms, definitions, and basic recall from the text.',
+    medium: 'MEDIUM MODE: Focus on conceptual understanding, cause-and-effect, and standard application.',
+    hard: 'HARD MODE: Focus on multi-step problem solving, critical analysis, and deep synthesis.',
   }[difficulty.toLowerCase() as 'easy' | 'medium' | 'hard'] || 'Focus on balanced conceptual understanding.';
 
   return `You are a high-level academic professor and quiz creator. Generate EXACTLY ${count} comprehensive, accurate, and engaging quiz questions based strictly on the provided material.
@@ -113,15 +150,17 @@ QUIZ CONFIGURATION:
 - Number of Questions: ${count}
 - Target Difficulty: ${difficulty.toUpperCase()}
 - Difficulty Baseline: ${difficultyInstructions}
-- Allowed Question Types: ${questionTypes.join(', ')}
+- Requested Question Types: ${questionTypes.join(', ')}
 
-REQUIREMENTS:
-1. Every question prompt must be a complete, well-formed question matching the requested Target Difficulty.
-2. For multiple_choice questions: provide exactly 4 distinct options.
-3. For true_false questions: options MUST be ["True", "False"].
-4. correctAnswer must be the 0-based index of the correct option (0, 1, 2, or 3).
-5. Provide a clear 1-2 sentence explanation explaining why the correct answer is right.
-6. Return ONLY a valid JSON object matching this schema (no markdown fences, no extra text):
+RULES FOR EACH QUESTION TYPE:
+1. "multiple_choice": Set "type": "multiple_choice". Provide 4 options in "options" array. "correctAnswer" MUST be the 0-based index integer (0, 1, 2, or 3).
+2. "true_false": Set "type": "true_false". "options" MUST be ["True", "False"]. "correctAnswer" MUST be 0 (for True) or 1 (for False).
+3. "enumeration": Set "type": "enumeration". "options" MUST be []. "correctAnswer" MUST be a string specifying the exact term or answer.
+4. "essay": Set "type": "essay". "options" MUST be []. "correctAnswer" MUST be a string outlining the model answer or key grading points.
+
+Generate only questions matching the requested types (${questionTypes.join(', ')}).
+
+Return ONLY a valid JSON object matching this schema (no markdown fences, no extra text):
 
 {
   "title": "${quizTitle}",
@@ -129,11 +168,11 @@ REQUIREMENTS:
   "description": "string",
   "questions": [
     {
-      "type": "multiple_choice",
-      "prompt": "Question text here?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "type": "multiple_choice" | "true_false" | "enumeration" | "essay",
+      "prompt": "Question prompt text?",
+      "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
       "correctAnswer": 0,
-      "explanation": "Explanation here.",
+      "explanation": "Detailed explanation here.",
       "category": "string"
     }
   ]
