@@ -64,7 +64,8 @@ export const quizService = {
       try {
         const col = userQuizzesPath(this.currentUid);
         if (col) {
-          const snap: any = await withTimeout(getDocs(query(col, orderBy('createdAt', 'desc'))), 3000);
+          // Fetch raw collection from Firestore (avoid requiring composite indexes)
+          const snap: any = await withTimeout(getDocs(col), 5000);
           if (snap && !snap.empty) {
             const remoteMap = new Map<string, Quiz>();
             snap.forEach((d: any) => remoteMap.set(d.id, { id: d.id, ...d.data() } as Quiz));
@@ -82,8 +83,8 @@ export const quizService = {
             );
           }
         }
-      } catch {
-        // Fall back cleanly to local storage
+      } catch (err) {
+        console.warn('[quizService] Firestore getQuizzes notice:', err);
       }
     }
     return localQuizzes;

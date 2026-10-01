@@ -54,14 +54,11 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [medals, setMedals] = useState<Medal[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Keep quizService UID in sync with auth so Firestore writes are user-scoped
-  React.useEffect(() => {
-    quizService.currentUid = user?.uid;
-  }, [user?.uid]);
-
+  // Keep quizService UID in sync with auth and re-fetch user's quizzes from Firestore when logged in
   useEffect(() => {
+    quizService.currentUid = user?.uid;
     refreshData();
-  }, []);
+  }, [user?.uid]);
 
   const refreshData = async () => {
     setIsLoading(true);
