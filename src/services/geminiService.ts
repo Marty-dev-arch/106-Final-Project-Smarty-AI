@@ -197,6 +197,7 @@ export const geminiService = {
 
     // ── Call Gemini AI with the real document content ─────────────────────────
     const apiKey = await storageService.getGeminiApiKey();
+    console.log(`[geminiService] Sending ${content.length} chars to Gemini | title: "${quizTitle}" | preview: "${content.slice(0, 200)}"`);
     if (isRealApiKey(apiKey) && content.length > 5) {
       try {
         const prompt = buildQuizPrompt(content, count, difficulty, questionTypes, quizTitle);
@@ -246,18 +247,26 @@ export const geminiService = {
           }
         }
       } catch (err) {
-        console.warn('[geminiService] Gemini call failed, using smart fallback:', err);
+        console.warn('[geminiService] Gemini call failed:', err);
+        // If we have real document content, don't silently fall to a keyword pool.
+        // Re-throw so the UI shows a proper error message.
+        const hasDocumentContent = (slides && slides.length > 0) || topicOrDocumentText.trim().length > 100;
+        if (hasDocumentContent) {
+          throw new Error('Failed to connect to Gemini AI. Please check your API key and internet connection, then try again.');
+        }
       }
     }
 
-    // ── Fallback (no API key or Gemini failed) ────────────────────────────────
+    // ── Fallback only when there is NO real document content (bare topic title) ──
     return geminiService.generateSmartFallback(params);
   },
 
   generateSmartFallback(params: GenerateQuizParams): Quiz {
     const { topicOrDocumentText, count, difficulty, questionTypes, title } = params;
     const safeTitle = title || (topicOrDocumentText ? topicOrDocumentText.slice(0, 32) : 'General Knowledge Quiz');
-    const lowerTopic = (safeTitle + ' ' + topicOrDocumentText).toLowerCase();
+    // ⚠️ Only match on the title — NOT the full document text — to prevent
+    // Calculus/Physics slides from matching Biology keywords inside the content.
+    const lowerTopic = safeTitle.toLowerCase();
 
     let samplePool: Question[] = [];
     let categoryName = 'General Knowledge';
