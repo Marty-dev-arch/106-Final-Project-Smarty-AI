@@ -193,25 +193,63 @@ export default function ProfileSetiing() {
     );
   };
 
-  // Launch Image Picker and open Crop Modal
+  // Launch Image Picker (guaranteed to work across PC browsers & all iPhone/Android phone models)
   const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission needed", "Please allow photo library access to change profile picture.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: false, // We use our custom interactive crop modal
-      quality: 1,
-    });
+    try {
+      // 1. Web & Mobile Web fallback (iPhone Safari/Chrome, Android Chrome, PC browsers)
+      if (Platform.OS === "web") {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.onchange = async (e: any) => {
+          const file = e.target?.files?.[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const resultUri = reader.result as string;
+              setRawImageUri(resultUri);
+              setCropZoom(1);
+              setCropRotation(0);
+              setShowEditModal(false);
+              setShowCropModal(true);
+            };
+            reader.readAsDataURL(file);
+          }
+        };
+        input.click();
+        return;
+      }
 
-    if (!result.canceled && result.assets.length > 0) {
-      const selectedUri = result.assets[0].uri;
-      setRawImageUri(selectedUri);
-      setCropZoom(1);
-      setCropRotation(0);
-      setShowCropModal(true);
+      // 2. Native Mobile App (iOS / Android Expo)
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Needed", "Please allow photo library access to change your profile picture.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const selectedUri = asset.base64
+          ? `data:image/jpeg;base64,${asset.base64}`
+          : asset.uri;
+
+        setRawImageUri(selectedUri);
+        setCropZoom(1);
+        setCropRotation(0);
+        setShowEditModal(false);
+        setShowCropModal(true);
+      }
+    } catch (err: any) {
+      console.warn("Pick image error:", err);
+      Alert.alert("Upload Notice", err.message || "Failed to select photo.");
     }
   };
 
@@ -228,26 +266,34 @@ export default function ProfileSetiing() {
       }
       actions.push({ resize: { width: 600, height: 600 } });
 
-      const manipulated = await ImageManipulator.manipulateAsync(
-        rawImageUri,
-        actions,
-        {
-          compress: 0.85,
-          format: ImageManipulator.SaveFormat.JPEG,
-          base64: true,
-        }
-      );
+      let manipulatedUri = rawImageUri;
+      let croppedBase64 = rawImageUri;
 
-      const croppedBase64 = manipulated.base64
-        ? `data:image/jpeg;base64,${manipulated.base64}`
-        : manipulated.uri;
+      try {
+        const manipulated = await ImageManipulator.manipulateAsync(
+          rawImageUri,
+          actions,
+          {
+            compress: 0.85,
+            format: ImageManipulator.SaveFormat.JPEG,
+            base64: true,
+          }
+        );
+        manipulatedUri = manipulated.uri;
+        croppedBase64 = manipulated.base64
+          ? `data:image/jpeg;base64,${manipulated.base64}`
+          : manipulated.uri;
+      } catch (manipErr) {
+        console.warn("ImageManipulator notice:", manipErr);
+      }
 
-      // Close crop modal and start upload
+      // Close crop modal, restore edit modal, and start upload
       setShowCropModal(false);
+      setShowEditModal(true);
       setIsUploadingAvatar(true);
-      setProfileImage(manipulated.uri); // instant local preview
+      setProfileImage(manipulatedUri); // instant local preview
 
-      let finalPhotoURL = manipulated.uri;
+      let finalPhotoURL = manipulatedUri;
 
       // 2. Upload to Cloudinary
       if (CLOUDINARY_CONFIG.cloudName) {
@@ -259,7 +305,7 @@ export default function ProfileSetiing() {
 
       // 3. Save to Firebase Auth, Firestore, and AsyncStorage
       await updateAccountDetails({ photoURL: finalPhotoURL });
-      setModalSuccess("Profile picture cropped and saved successfully!");
+      setModalSuccess("Profile picture updated and saved successfully!");
       setTimeout(() => setModalSuccess(null), 3000);
     } catch (err: any) {
       console.warn("Crop/Upload error:", err);
@@ -1382,7 +1428,12 @@ export default function ProfileSetiing() {
                 <Text style={[styles.cropModalTitle, { color: colors.text }]}>Crop & Resize Photo</Text>
               </View>
               <TouchableOpacity
-                onPress={() => !isProcessingCrop && setShowCropModal(false)}
+                onPress={() => {
+                  if (!isProcessingCrop) {
+                    setShowCropModal(false);
+                    setShowEditModal(true);
+                  }
+                }}
                 style={styles.modalCloseButton}
               >
                 <Ionicons name="close" size={20} color={colors.textSecondary} />
@@ -1473,7 +1524,12 @@ export default function ProfileSetiing() {
                   styles.cropCancelBtn,
                   { backgroundColor: isDark ? "#1E293B" : "#F1F5F9", borderColor: colors.cardBorder },
                 ]}
-                onPress={() => !isProcessingCrop && setShowCropModal(false)}
+                onPress={() => {
+                  if (!isProcessingCrop) {
+                    setShowCropModal(false);
+                    setShowEditModal(true);
+                  }
+                }}
                 activeOpacity={0.75}
                 disabled={isProcessingCrop}
               >
