@@ -180,9 +180,11 @@ export default function UploadQuiz() {
         difficulty,
         questionTypes: selectedTypes,
       });
+      setGenerating(false);
       startQuiz(generated);
       navigation.navigate("QuizTaking", { quizId: generated.id });
     } catch (e: any) {
+      setGenerating(false);
       Alert.alert("Error", "Failed to generate quiz: " + (e.message || "Please check connection"));
     } finally {
       setGenerating(false);
