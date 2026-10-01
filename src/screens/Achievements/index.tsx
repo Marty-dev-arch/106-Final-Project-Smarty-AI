@@ -99,16 +99,16 @@ const MEDALS_DATA: MedalItem[] = [
 export default function Achievements() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, refreshUser } = useAuth();
-  const { medals, isLoading, refreshData } = useQuiz();
+  const { quizzes, medals, isLoading, refreshData } = useQuiz();
   const { colors, isDark } = useTheme();
 
   const [activeTab, setActiveTab] = useState<"Badges" | "Medals" | "Ribbons">("Medals");
   const [refreshing, setRefreshing] = useState(false);
 
   const userXP = user?.totalXP ?? 0;
-  const userQuizzes = user?.quizzesTaken ?? 0;
+  const userQuizzes = (user?.quizzesTaken ?? 0) === 0 || quizzes.length === 0 ? 0 : user?.quizzesTaken ?? 0;
   const userStreak = user?.streak ?? 0;
-  const userAvgScore = user?.avgScore ?? 0;
+  const userAvgScore = userQuizzes === 0 ? 0 : user?.avgScore ?? 0;
 
   // Dynamically compute real medals based on user stats in Firebase
   const displayMedals: MedalItem[] = [

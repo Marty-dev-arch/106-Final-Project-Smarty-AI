@@ -74,6 +74,11 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setQuizzes(qList);
       setMistakes(mList);
       setMedals(medList);
+
+      // Auto-heal user stats in Firestore and state if 0 quizzes exist but stats are non-zero
+      if (qList.length === 0 && ((user?.quizzesTaken ?? 0) > 0 || (user?.avgScore ?? 0) > 0)) {
+        await updateUser({ quizzesTaken: 0, avgScore: 0 });
+      }
     } catch (e) {
       console.warn('Error refreshing quiz data:', e);
     } finally {

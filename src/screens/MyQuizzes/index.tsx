@@ -75,7 +75,7 @@ export default function MyQuizzes() {
     });
   }, [quizzes, filter, searchQuery]);
 
-  const quizzesDone = user?.quizzesTaken ?? 0;
+  const quizzesDone = (user?.quizzesTaken ?? 0) === 0 || quizzes.length === 0 ? 0 : user?.quizzesTaken ?? 0;
   const streakPercent = Math.min(100, Math.round((quizzesDone / Math.max(1, quizzesDone + 2)) * 100));
 
   return (

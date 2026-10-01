@@ -84,7 +84,9 @@ export default function ProfileSetiing() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, signOut, updateAccountDetails } = useAuth();
   const { colors, isDark, themeMode, setThemeMode } = useTheme();
-  const { deleteAllQuizzesAndFiles } = useQuiz();
+  const { deleteAllQuizzesAndFiles, quizzes } = useQuiz();
+  const profileQuizzesTaken = (user?.quizzesTaken ?? 0) === 0 || quizzes.length === 0 ? 0 : user?.quizzesTaken ?? 0;
+  const profileAvgScore = profileQuizzesTaken === 0 ? 0 : user?.avgScore ?? 0;
 
   // Study Settings state
   const [difficulty, setDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
@@ -569,14 +571,14 @@ export default function ProfileSetiing() {
               <View style={styles.metricsRow}>
                 <View style={[styles.metricBox, isDark ? styles.metricBoxDark : styles.metricBoxPurple]}>
                   <Text style={[styles.metricNum, { color: isDark ? "#A78BFA" : "#4338CA" }]}>
-                    {user?.quizzesTaken ?? 0}
+                    {profileQuizzesTaken}
                   </Text>
                   <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Quizzes</Text>
                 </View>
 
                 <View style={[styles.metricBox, isDark ? styles.metricBoxDark : styles.metricBoxIndigo]}>
                   <Text style={[styles.metricNum, { color: isDark ? "#818CF8" : "#3730A3" }]}>
-                    {user?.avgScore ?? 0}%
+                    {profileAvgScore}%
                   </Text>
                   <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Avg Score</Text>
                 </View>
