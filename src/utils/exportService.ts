@@ -378,12 +378,7 @@ function buildPptxZip(quiz: Quiz): ArrayBuffer {
     ...quiz.questions.map((q, i) => ({
       path: `ppt/slides/slide${i + 2}.xml`,
       content: questionSlide(
-        {
-          ...q,
-          correctAnswer: typeof q.correctAnswer === 'string'
-            ? parseInt(q.correctAnswer, 10)
-            : q.correctAnswer,
-        },
+        { prompt: q.prompt, options: q.options },
         i
       ),
     })),

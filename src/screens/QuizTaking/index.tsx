@@ -51,6 +51,7 @@ export default function QuizTaking() {
   const [timeSpent, setTimeSpent] = useState(0);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showAnswerKeyModal, setShowAnswerKeyModal] = useState(false);
+  const [showQuestionNavModal, setShowQuestionNavModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameTitleInput, setRenameTitleInput] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -297,12 +298,20 @@ export default function QuizTaking() {
           </TouchableOpacity>
 
           <View style={styles.centerPillsRow}>
-            <View style={styles.questionPill}>
+            <TouchableOpacity
+              style={styles.questionPill}
+              onPress={() => {
+                triggerHaptic.light();
+                setShowQuestionNavModal(true);
+              }}
+              activeOpacity={0.75}
+            >
               <View style={styles.liveGreenDot} />
               <Text style={styles.questionPillText}>
                 Question {currentQuestionIndex + 1}/{totalQ}
               </Text>
-            </View>
+              <Ionicons name="chevron-down" size={13} color="#4648D4" style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
@@ -725,6 +734,92 @@ export default function QuizTaking() {
               onPress={() => setShowAnswerKeyModal(false)}
             >
               <Text style={styles.modalCloseBtnText}>Close Answer Key</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── QUESTION QUICK NAVIGATION / TABLE VIEW MODAL ─── */}
+      <Modal
+        visible={showQuestionNavModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowQuestionNavModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.answerKeyCard}>
+            <View style={styles.modalHeaderRow}>
+              <View style={styles.modalHeaderLeft}>
+                <Ionicons name="grid" size={20} color="#4648D4" style={{ marginRight: 8 }} />
+                <Text style={styles.modalHeaderTitle}>Question Table View</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowQuestionNavModal(false)} style={{ padding: 4 }}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.answerKeySubtitle}>
+              Tap any question card below to skip and switch tabs instantly:
+            </Text>
+
+            <ScrollView style={{ maxHeight: 400, marginTop: 4 }} showsVerticalScrollIndicator={false}>
+              <View style={styles.navGridContainer}>
+                {quiz.questions.map((q, idx) => {
+                  const isCurrent = idx === currentQuestionIndex;
+                  const isAnswered = userAnswers[q.id] !== undefined;
+
+                  return (
+                    <TouchableOpacity
+                      key={q.id || idx}
+                      style={[
+                        styles.navGridCard,
+                        isCurrent && styles.navGridCardCurrent,
+                        isAnswered && !isCurrent && styles.navGridCardAnswered,
+                      ]}
+                      onPress={() => {
+                        triggerHaptic.light();
+                        setCurrentQuestionIndex(idx);
+                        setIsEditing(false);
+                        setShowQuestionNavModal(false);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.navCardHeaderRow}>
+                        <View style={[styles.navQBadge, isCurrent && styles.navQBadgeCurrent]}>
+                          <Text style={[styles.navQBadgeText, isCurrent && styles.navQBadgeTextCurrent]}>
+                            Q{idx + 1}
+                          </Text>
+                        </View>
+                        {isCurrent ? (
+                          <View style={styles.statusPillActive}>
+                            <Text style={styles.statusTextActive}>ACTIVE</Text>
+                          </View>
+                        ) : isAnswered ? (
+                          <View style={styles.statusPillDone}>
+                            <Ionicons name="checkmark-circle" size={12} color="#059669" style={{ marginRight: 2 }} />
+                            <Text style={styles.statusTextDone}>Done</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.statusPillPending}>
+                            <Text style={styles.statusTextPending}>Pending</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <Text style={styles.navQPromptPreview} numberOfLines={2}>
+                        {q.prompt}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setShowQuestionNavModal(false)}
+            >
+              <Text style={styles.modalCloseBtnText}>Close Navigator</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1477,5 +1572,98 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
+  },
+  /* ─── Question Table Navigator Modal Styles ─── */
+  navGridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    paddingVertical: 6,
+  },
+  navGridCard: {
+    width: "48%",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    padding: 12,
+  },
+  navGridCardCurrent: {
+    backgroundColor: "#F5F3FF",
+    borderColor: "#4648D4",
+    shadowColor: "#4648D4",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  navGridCardAnswered: {
+    backgroundColor: "#F0FDF4",
+    borderColor: "#BBF7D0",
+  },
+  navCardHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  navQBadge: {
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  navQBadgeCurrent: {
+    backgroundColor: "#4648D4",
+  },
+  navQBadgeText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#475569",
+  },
+  navQBadgeTextCurrent: {
+    color: "#FFFFFF",
+  },
+  statusPillActive: {
+    backgroundColor: "#4648D4",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  statusTextActive: {
+    fontSize: 9.5,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.3,
+  },
+  statusPillDone: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  statusTextDone: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  statusPillPending: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  statusTextPending: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#94A3B8",
+  },
+  navQPromptPreview: {
+    fontSize: 12,
+    color: "#334155",
+    lineHeight: 16,
+    fontWeight: "500",
   },
 });

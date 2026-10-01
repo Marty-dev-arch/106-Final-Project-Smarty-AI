@@ -33,6 +33,7 @@ import Animated, {
 import { RootStackParamList } from "../../types/navigation";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme, ThemeMode } from "../../context/ThemeContext";
+import { useQuiz } from "../../context/QuizContext";
 import { uploadToCloudinary, CLOUDINARY_CONFIG } from "../../services/cloudinaryService";
 import BottomNav from "../../components/common/BottomNav";
 
@@ -83,6 +84,7 @@ export default function ProfileSetiing() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, signOut, updateAccountDetails } = useAuth();
   const { colors, isDark, themeMode, setThemeMode } = useTheme();
+  const { deleteAllQuizzesAndFiles } = useQuiz();
 
   // Study Settings state
   const [difficulty, setDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
@@ -111,6 +113,7 @@ export default function ProfileSetiing() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSavingSecurity, setIsSavingSecurity] = useState(false);
+  const [isDeletingData, setIsDeletingData] = useState(false);
 
   // Feedback State
   const [modalError, setModalError] = useState<string | null>(null);
@@ -353,6 +356,34 @@ export default function ProfileSetiing() {
     } finally {
       setIsSavingSecurity(false);
     }
+  };
+
+  // Delete all quizzes and files
+  const handleDeleteAllQuizzesAndFiles = () => {
+    Alert.alert(
+      "Delete All Quizzes & Files",
+      "Are you sure you want to delete all your quizzes, attempts, and uploaded documents? This will delete them locally AND in Firestore for your account.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete All",
+          style: "destructive",
+          onPress: async () => {
+            setIsDeletingData(true);
+            setModalError(null);
+            try {
+              await deleteAllQuizzesAndFiles();
+              setModalSuccess("All quizzes and files deleted successfully.");
+              setTimeout(() => setModalSuccess(null), 3500);
+            } catch (err: any) {
+              setModalError(err.message || "Failed to delete quizzes and files.");
+            } finally {
+              setIsDeletingData(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Change Theme Mode
@@ -1164,6 +1195,43 @@ export default function ProfileSetiing() {
                       </>
                     )}
                   </TouchableOpacity>
+
+                  {/* ─── DANGER ZONE: DELETE ALL QUIZZES & FILES ─── */}
+                  <View style={{ marginTop: 24, paddingTop: 16, borderTopWidth: 1, borderTopColor: isDark ? "#334155" : "#E2E8F0" }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#EF4444", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+                      Data & Account Cleanup
+                    </Text>
+                    <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 12, lineHeight: 17 }}>
+                      Permanently delete all quizzes, attempts, and uploaded documents associated with your logged-in account in Firestore and local storage.
+                    </Text>
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: isDark ? "#451A1A" : "#FEF2F2",
+                        borderWidth: 1,
+                        borderColor: isDark ? "#7F1D1D" : "#FCA5A5",
+                        borderRadius: 12,
+                        paddingVertical: 12,
+                        paddingHorizontal: 16,
+                      }}
+                      onPress={handleDeleteAllQuizzesAndFiles}
+                      disabled={isDeletingData}
+                      activeOpacity={0.8}
+                    >
+                      {isDeletingData ? (
+                        <ActivityIndicator size="small" color="#DC2626" />
+                      ) : (
+                        <>
+                          <Ionicons name="trash-outline" size={16} color="#DC2626" style={{ marginRight: 8 }} />
+                          <Text style={{ fontSize: 13.5, fontWeight: "700", color: "#DC2626" }}>
+                            Delete All Quizzes & Files
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
 

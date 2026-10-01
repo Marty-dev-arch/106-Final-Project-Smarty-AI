@@ -177,4 +177,18 @@ export const storageService = {
       console.warn('Error clearing storage:', e);
     }
   },
+
+  async deleteAllQuizzesAndFiles(): Promise<void> {
+    try {
+      await AsyncStorage.multiRemove([
+        KEYS.QUIZZES,
+        KEYS.ATTEMPTS,
+        KEYS.MISTAKES,
+        '@smarty_ai_uploaded_materials',
+        '@smarty_ai_uploaded_files',
+      ]);
+    } catch (e) {
+      console.warn('Error clearing quizzes and files from storage:', e);
+    }
+  },
 };

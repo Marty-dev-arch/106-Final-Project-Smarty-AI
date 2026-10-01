@@ -5,8 +5,10 @@ import { auth, db, isFirebaseInitialized } from '../config/firebase';
 import {
   collection,
   getDocs,
+  getDoc,
   doc,
   setDoc,
+  deleteDoc,
   query,
   orderBy,
 } from 'firebase/firestore';
@@ -300,5 +302,43 @@ export const quizService = {
       }
     }
     return localMedals;
+  },
+
+  /**
+   * Delete all quizzes and files for the logged in user locally and in Firestore.
+   */
+  async deleteAllQuizzesAndFiles(): Promise<void> {
+    // 1. Clear local storage
+    await storageService.deleteAllQuizzesAndFiles();
+
+    // 2. Clear Firestore collections for logged in user
+    const effUid = getEffectiveUid(this.currentUid);
+    if (isFirebaseInitialized && db && effUid) {
+      try {
+        const qCol = collection(db, 'users', effUid, 'quizzes');
+        const qSnap = await getDocs(qCol);
+        const deleteOps: Promise<void>[] = [];
+        qSnap.forEach((d) => {
+          deleteOps.push(deleteDoc(doc(db!, 'users', effUid, 'quizzes', d.id)));
+        });
+
+        const attCol = collection(db!, 'users', effUid, 'attempts');
+        const attSnap = await getDocs(attCol);
+        attSnap.forEach((d) => {
+          deleteOps.push(deleteDoc(doc(db!, 'users', effUid, 'attempts', d.id)));
+        });
+
+        const matCol = collection(db!, 'users', effUid, 'materials');
+        const matSnap = await getDocs(matCol);
+        matSnap.forEach((d) => {
+          deleteOps.push(deleteDoc(doc(db!, 'users', effUid, 'materials', d.id)));
+        });
+
+        await Promise.all(deleteOps);
+        console.log('[quizService] All user quizzes & files deleted from Firestore.');
+      } catch (err) {
+        console.warn('[quizService] Error deleting user quizzes/files from Firestore:', err);
+      }
+    }
   },
 };

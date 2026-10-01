@@ -38,6 +38,7 @@ interface QuizContextType {
   }) => Promise<Quiz>;
   startMistakePractice: () => Quiz | null;
   refreshData: () => Promise<void>;
+  deleteAllQuizzesAndFiles: () => Promise<void>;
 }
 
 const QuizContext = createContext<QuizContextType | undefined>(undefined);
@@ -266,6 +267,22 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const deleteAllQuizzesAndFiles = async () => {
+    setIsLoading(true);
+    try {
+      await quizService.deleteAllQuizzesAndFiles();
+      setQuizzes([]);
+      setActiveQuiz(null);
+      setMistakes([]);
+      setUserAnswers({});
+      setCurrentQuestionIndex(0);
+    } catch (e) {
+      console.warn('Error deleting all quizzes and files:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <QuizContext.Provider
       value={{
@@ -290,6 +307,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
         generateQuizWithAI,
         startMistakePractice,
         refreshData,
+        deleteAllQuizzesAndFiles,
       }}
     >
       {children}
