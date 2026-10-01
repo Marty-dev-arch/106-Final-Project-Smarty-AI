@@ -133,8 +133,15 @@ export const quizService = {
   async recordQuizAttempt(
     attempt: QuizAttempt
   ): Promise<{ updatedStreak: number; newAvgScore: number }> {
-    // 1. Save attempt
+    // 1. Save attempt locally and to Firestore
     await storageService.saveAttempt(attempt);
+
+    const effUid = getEffectiveUid(this.currentUid);
+    if (isFirebaseInitialized && db && effUid) {
+      try {
+        setDoc(doc(db, 'users', effUid, 'attempts', attempt.id), attempt, { merge: true }).catch(() => {});
+      } catch {}
+    }
 
     // 2. Identify mistakes and add to MistakeBank
     const mistakes: MistakeItem[] = attempt.answers
@@ -160,7 +167,7 @@ export const quizService = {
       await storageService.addMistakes(mistakes);
     }
 
-    // 3. Update User Stats & Streak
+    // 3. Update User Stats & Streak (XP, Tier, Streak, Quizzes Taken)
     const user = await storageService.getUser();
     let updatedStreak = 1;
     let newAvgScore = attempt.percentage;
@@ -198,7 +205,6 @@ export const quizService = {
       await storageService.saveUser(updatedUser);
 
       // Sync user profile to Firestore in background
-      const effUid = getEffectiveUid(this.currentUid);
       if (isFirebaseInitialized && db && effUid) {
         try {
           setDoc(doc(db, 'users', effUid), updatedUser, { merge: true } as any).catch(() => {});
@@ -208,7 +214,7 @@ export const quizService = {
       }
     }
 
-    // 4. Check & update medals
+    // 4. Check & update medals (Achievements)
     const medals = await storageService.getMedals();
     const updatedMedals = medals.map((m) => {
       if (m.id === 'm1' && newAvgScore >= 85 && newQuizzesTaken >= 20)
@@ -220,6 +226,13 @@ export const quizService = {
       return m;
     });
     await storageService.saveMedals(updatedMedals);
+
+    // Sync medals to Firestore for cross-device retrieval
+    if (isFirebaseInitialized && db && effUid) {
+      try {
+        setDoc(doc(db, 'users', effUid, 'data', 'medals'), { list: updatedMedals }, { merge: true }).catch(() => {});
+      } catch {}
+    }
 
     return { updatedStreak, newAvgScore };
   },
@@ -233,6 +246,20 @@ export const quizService = {
   },
 
   async getMedals(): Promise<Medal[]> {
-    return await storageService.getMedals();
+    const localMedals = await storageService.getMedals();
+    const effUid = getEffectiveUid(this.currentUid);
+    if (isFirebaseInitialized && db && effUid) {
+      try {
+        const snap: any = await withTimeout(getDoc(doc(db, 'users', effUid, 'data', 'medals')), 3000);
+        if (snap && snap.exists() && Array.isArray(snap.data()?.list)) {
+          const remoteMedals: Medal[] = snap.data().list;
+          await storageService.saveMedals(remoteMedals);
+          return remoteMedals;
+        }
+      } catch {
+        // Fallback to local storage
+      }
+    }
+    return localMedals;
   },
 };
