@@ -33,6 +33,8 @@ interface QuizContextType {
     questionTypes: QuestionType[];
     title?: string;
     timeLimitMinutes?: number;
+    sourceDocName?: string;
+    sourceDocUrl?: string;
   }) => Promise<Quiz>;
   startMistakePractice: () => Quiz | null;
   refreshData: () => Promise<void>;
@@ -166,6 +168,8 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     questionTypes: QuestionType[];
     title?: string;
     timeLimitMinutes?: number;
+    sourceDocName?: string;
+    sourceDocUrl?: string;
   }): Promise<Quiz> => {
     setIsLoading(true);
     try {

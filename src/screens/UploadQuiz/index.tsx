@@ -30,6 +30,7 @@ import NotificationDropdown from "../../components/common/NotificationDropdown";
 import BrainSpinner from "../../components/common/BrainSpinner";
 import THEME from "../../config/theme";
 import { documentExtractor, SlideBlock } from "../../utils/documentExtractor";
+import { uploadDocumentToCloudinary } from "../../services/cloudinaryService";
 
 interface UploadedFileInfo {
   name: string;
@@ -48,6 +49,7 @@ export default function UploadQuiz() {
   const [sourceText, setSourceText] = useState("");
   const [uploadedFile, setUploadedFile] = useState<UploadedFileInfo | null>(null);
   const [uploadedSlides, setUploadedSlides] = useState<SlideBlock[] | undefined>(undefined);
+  const [rawFile, setRawFile] = useState<File | null>(null); // raw File for Cloudinary upload
   const [questionCount, setQuestionCount] = useState(10);
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [selectedTypes, setSelectedTypes] = useState<QuestionType[]>([
@@ -103,15 +105,15 @@ export default function UploadQuiz() {
         if (file) {
           const extractedDoc = await documentExtractor.extractTextFromFile(file);
           const baseName = extractedDoc.fileName.replace(/\.[^/.]+$/, "");
-          // Derive fresh title from first slide or filename
+          // Always derive fresh title from this file
           const derivedTitle =
             (extractedDoc.slides?.[0]?.title || baseName)
               .replace(/\b\d+\s*slides\b/gi, '')
               .trim();
           setTitle(derivedTitle || baseName);
-
           setSourceText(extractedDoc.text);
           setUploadedSlides(extractedDoc.slides && extractedDoc.slides.length > 0 ? extractedDoc.slides : undefined);
+          setRawFile(file); // store raw File for Cloudinary
           setUploadedFile({
             name: extractedDoc.fileName,
             size: extractedDoc.size,
@@ -141,6 +143,7 @@ export default function UploadQuiz() {
 
   const handleRemoveDocument = () => {
     setUploadedFile(null);
+    setRawFile(null);
     setSourceText("");
     setUploadedSlides(undefined);
     setTitle("");
@@ -171,13 +174,28 @@ export default function UploadQuiz() {
     setGenerating(true);
     try {
       const promptPayload = sourceText.trim() || uploadedFile?.name || title.trim();
+      const quizTitle = title.trim() || uploadedFile?.name?.replace(/\.[^/.]+$/, "") || "Custom AI Quiz";
+
+      // 1. Upload file to Cloudinary (non-blocking if it fails)
+      let docUrl: string | undefined;
+      if (rawFile) {
+        try {
+          docUrl = await uploadDocumentToCloudinary(rawFile, { folder: `smarty_docs/${user?.uid || 'guest'}` });
+        } catch (uploadErr) {
+          console.warn('[UploadQuiz] Cloudinary upload failed (continuing without URL):', uploadErr);
+        }
+      }
+
+      // 2. Generate quiz from extracted content via Gemini AI
       const generated = await generateQuizWithAI({
-        title: title.trim() || uploadedFile?.name?.replace(/\.[^/.]+$/, "") || "Custom AI Quiz",
+        title: quizTitle,
         topicOrDocumentText: promptPayload,
         slides: uploadedSlides,
         count: questionCount,
         difficulty,
         questionTypes: selectedTypes,
+        sourceDocName: uploadedFile?.name,
+        sourceDocUrl: docUrl,
       });
       setGenerating(false);
       startQuiz(generated);

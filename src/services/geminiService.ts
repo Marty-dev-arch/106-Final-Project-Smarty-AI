@@ -11,6 +11,8 @@ interface GenerateQuizParams {
   questionTypes: QuestionType[];
   title?: string;
   timeLimitMinutes?: number;
+  sourceDocName?: string;  // original filename
+  sourceDocUrl?: string;   // Cloudinary URL
 }
 
 const isRealApiKey = (key?: string): boolean => {
@@ -50,17 +52,7 @@ function deriveQuizTitle(text: string, slides?: SlideBlock[]): string {
   return 'Study Quiz';
 }
 
-function detectCategory(title: string, text: string): string {
-  const combined = (title + ' ' + text.slice(0, 500)).toLowerCase();
-  if (/fiber|optic|telecom|laser|wavelength|attenuation/i.test(combined)) return 'Fiber Optics & Telecom';
-  if (/cisco|network|routing|switch|vlan|subnet|ip|osi|tcp|udp/i.test(combined)) return 'Computer Networking';
-  if (/code|programming|react|javascript|python|sql|html|css|developer|algorithm/i.test(combined)) return 'Computer Science & Software';
-  if (/bio|cell|organ|gene|dna|med|health|body|anatomy/i.test(combined)) return 'Biology & Health Sciences';
-  if (/math|calculus|algebra|physics|geometry|equation/i.test(combined)) return 'Mathematics & Physics';
-  if (/history|war|century|civilization|government|revolution/i.test(combined)) return 'History & Social Studies';
-  if (/business|finance|marketing|accounting|management|economic/i.test(combined)) return 'Business & Finance';
-  return 'General Knowledge';
-}
+// Category is determined by Gemini AI based on actual document content.
 
 function validateQuestions(rawQuestions: any[], fallbackCategory: string): Question[] {
   const cleanQuestions: Question[] = [];
@@ -189,13 +181,10 @@ async function fetchGemini(
 
 export const geminiService = {
   async generateQuiz(params: GenerateQuizParams): Promise<Quiz> {
-    const { topicOrDocumentText, slides, count, difficulty, questionTypes, title } = params;
+    const { topicOrDocumentText, slides, count, difficulty, questionTypes, title, sourceDocName, sourceDocUrl } = params;
     const quizTitle = title || deriveQuizTitle(topicOrDocumentText, slides);
-    const category = detectCategory(quizTitle, topicOrDocumentText);
 
-    // ── 1. If we have a valid API key, generate with Gemini AI ───────────────
-    const apiKey = await storageService.getGeminiApiKey();
-
+    // ── Build content from slides (actual per-slide text) or raw text ─────────
     let content = topicOrDocumentText.trim();
     if (slides && slides.length > 0) {
       const slideText = slides
@@ -206,6 +195,8 @@ export const geminiService = {
       }
     }
 
+    // ── Call Gemini AI with the real document content ─────────────────────────
+    const apiKey = await storageService.getGeminiApiKey();
     if (isRealApiKey(apiKey) && content.length > 5) {
       try {
         const prompt = buildQuizPrompt(content, count, difficulty, questionTypes, quizTitle);
@@ -229,20 +220,17 @@ export const geminiService = {
               const clean = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
               parsed = JSON.parse(clean);
             } catch {
-              // JSON parse failed
+              // JSON parse failed — fall through to fallback
             }
 
             if (parsed?.questions && Array.isArray(parsed.questions)) {
-              const validated = validateQuestions(parsed.questions, parsed.category || category);
-
+              const validated = validateQuestions(parsed.questions, parsed.category || 'General Knowledge');
               if (validated.length > 0) {
                 return {
                   id: 'quiz_' + Date.now(),
                   title: parsed.title || quizTitle,
-                  description:
-                    parsed.description ||
-                    `AI-generated quiz on ${quizTitle} (${difficulty})`,
-                  category: parsed.category || category,
+                  description: parsed.description || `AI-generated quiz on ${quizTitle} (${difficulty})`,
+                  category: parsed.category || 'General Knowledge',
                   difficulty,
                   questionTypes,
                   questionsCount: validated.length,
@@ -250,6 +238,8 @@ export const geminiService = {
                   createdAt: new Date().toISOString(),
                   timesTaken: 0,
                   timeLimitMinutes: params.timeLimitMinutes || 5,
+                  sourceDocName: sourceDocName,
+                  sourceDocUrl: sourceDocUrl,
                 };
               }
             }
@@ -260,7 +250,7 @@ export const geminiService = {
       }
     }
 
-    // ── 2. Fallback: build high-quality question set ───────────────────────────
+    // ── Fallback (no API key or Gemini failed) ────────────────────────────────
     return geminiService.generateSmartFallback(params);
   },
 

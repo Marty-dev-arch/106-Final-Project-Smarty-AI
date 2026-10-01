@@ -23,6 +23,7 @@ export interface Quiz {
   questions: Question[];
   createdAt: string;
   sourceDocName?: string;
+  sourceDocUrl?: string;   // Cloudinary URL of the uploaded file
   bestScore?: number;
   timesTaken?: number;
   timeLimitMinutes?: number;
