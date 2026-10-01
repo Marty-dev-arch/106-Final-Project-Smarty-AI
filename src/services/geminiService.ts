@@ -24,15 +24,12 @@ const isRealApiKey = (key?: string): boolean => {
   );
 };
 
-/** Real Gemini API model names — ordered by speed & reliability */
+/** Real Gemini API model names — ordered by speed & availability */
 const GEMINI_MODELS = [
-  'gemini-3.5-flash',
-  'gemini-flash-latest',
-  'gemini-3.1-flash-lite',
   'gemini-flash-lite-latest',
-  'gemini-3.8-flash',
-  'gemini-3.6-flash',
-  'gemini-2.5-flash-lite',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash',
 ];
 
 function deriveQuizTitle(text: string, slides?: SlideBlock[]): string {
@@ -140,7 +137,7 @@ REQUIREMENTS:
 async function fetchGemini(
   apiKey: string,
   body: object,
-  totalTimeoutMs = 18000
+  totalTimeoutMs = 45000
 ): Promise<Response | null> {
   const overallController = new AbortController();
   const overallTimer = setTimeout(() => overallController.abort(), totalTimeoutMs);
@@ -149,7 +146,7 @@ async function fetchGemini(
     if (overallController.signal.aborted) break;
 
     const modelController = new AbortController();
-    const modelTimer = setTimeout(() => modelController.abort(), 7000);
+    const modelTimer = setTimeout(() => modelController.abort(), 25000);
 
     const url = `${GEMINI_CONFIG.endpoint}/${model}:generateContent?key=${apiKey}`;
 
@@ -210,7 +207,7 @@ export const geminiService = {
           },
         };
 
-        const response = await fetchGemini(apiKey!, body, 18000);
+        const response = await fetchGemini(apiKey!, body, 45000);
 
         if (response && response.ok) {
           const data = await response.json();
