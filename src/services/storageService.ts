@@ -149,10 +149,16 @@ export const storageService = {
   // Gemini API Key
   async getGeminiApiKey(): Promise<string> {
     try {
-      const key = await AsyncStorage.getItem(KEYS.GEMINI_KEY);
-      return key || GEMINI_CONFIG.defaultApiKey;
+      // Env key is always the primary source (set in .env / Firebase Remote Config).
+      // Only fall back to an AsyncStorage key if the user has entered one manually
+      // via the Settings screen AND there is no env key.
+      const envKey = GEMINI_CONFIG.defaultApiKey?.trim();
+      if (envKey) return envKey;
+
+      const storedKey = await AsyncStorage.getItem(KEYS.GEMINI_KEY);
+      return storedKey?.trim() || '';
     } catch {
-      return GEMINI_CONFIG.defaultApiKey;
+      return GEMINI_CONFIG.defaultApiKey || '';
     }
   },
 

@@ -144,23 +144,33 @@ async function fetchGemini(
   const overallController = new AbortController();
   const overallTimer = setTimeout(() => overallController.abort(), totalTimeoutMs);
 
+  // AQ. prefix = Google OAuth2 "auth key" → must use Authorization: Bearer header
+  // AIza prefix = simple API key → use x-goog-api-key header or ?key= param
+  const isOAuthKey = apiKey.startsWith('AQ.');
+  const authHeaders: Record<string, string> = isOAuthKey
+    ? { 'Authorization': `Bearer ${apiKey}` }
+    : { 'x-goog-api-key': apiKey };
+
   for (const model of GEMINI_MODELS) {
     if (overallController.signal.aborted) break;
 
     const modelController = new AbortController();
-    const modelTimer = setTimeout(() => modelController.abort(), 4500);
+    const modelTimer = setTimeout(() => modelController.abort(), 7000);
+
+    // Build URL: OAuth keys don't use ?key= param
+    const url = isOAuthKey
+      ? `${GEMINI_CONFIG.endpoint}/${model}:generateContent`
+      : `${GEMINI_CONFIG.endpoint}/${model}:generateContent?key=${apiKey}`;
 
     try {
-      const res = await fetch(
-        `${GEMINI_CONFIG.endpoint}/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          signal: modelController.signal,
-        }
-      );
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify(body),
+        signal: modelController.signal,
+      });
       clearTimeout(modelTimer);
+      console.log(`[fetchGemini] ${model} → ${res.status}`);
       if (res.ok) {
         clearTimeout(overallTimer);
         return res;
@@ -174,6 +184,7 @@ async function fetchGemini(
   clearTimeout(overallTimer);
   return null;
 }
+
 
 export const geminiService = {
   async generateQuiz(params: GenerateQuizParams): Promise<Quiz> {
