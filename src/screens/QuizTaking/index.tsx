@@ -11,6 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +27,7 @@ const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
 export default function QuizTaking() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "QuizTaking">>();
+  const insets = useSafeAreaInsets();
   const {
     activeQuiz,
     quizzes,
@@ -557,22 +559,6 @@ export default function QuizTaking() {
               })}
             </View>
 
-            {/* Concept Explanation Card */}
-            {currentQ.explanation ? (
-              <View style={styles.conceptCard}>
-                <View style={styles.bulbIconCircle}>
-                  <Ionicons name="bulb" size={18} color="#F59E0B" />
-                </View>
-                <View style={styles.conceptTextCol}>
-                  <View style={styles.conceptHeaderRow}>
-                    <Text style={styles.conceptKeyTag}>CONCEPT KEY</Text>
-                    <Text style={styles.conceptCategory}>{quiz.category || "Study Concept"}</Text>
-                  </View>
-                  <Text style={styles.conceptBody}>{currentQ.explanation}</Text>
-                </View>
-              </View>
-            ) : null}
-
             {/* ─── PROMINENT "ADD NEW QUESTION PAGE" BUTTON ON THE LAST QUESTION ── */}
             {isLastQuestion && (
               <TouchableOpacity
@@ -592,25 +578,29 @@ export default function QuizTaking() {
                 <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
               </TouchableOpacity>
             )}
-
-            {/* Next Question / Finish Button */}
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={handleNextOrFinish}
-              activeOpacity={0.88}
-              disabled={finishing}
-            >
-              {finishing ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.actionBtnText}>
-                  {isLastQuestion ? "Complete Quiz →" : "Next Question →"}
-                </Text>
-              )}
-            </TouchableOpacity>
           </>
         )}
       </ScrollView>
+
+      {/* ─── FIXED BOTTOM ACTION BAR ─────────────────────────────────────── */}
+      {!isEditing && (
+        <View style={[styles.fixedBottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={handleNextOrFinish}
+            activeOpacity={0.88}
+            disabled={finishing}
+          >
+            {finishing ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.actionBtnText}>
+                {isLastQuestion ? "Complete Quiz →" : "Next Question →"}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Export Modal Component */}
       <ExportModal
@@ -630,7 +620,19 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 40,
+    paddingBottom: 32,
+  },
+  fixedBottomBar: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 8,
   },
   emptyContainer: {
     flex: 1,
