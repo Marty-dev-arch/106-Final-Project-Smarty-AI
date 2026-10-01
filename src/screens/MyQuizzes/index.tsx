@@ -223,6 +223,31 @@ export default function MyQuizzes() {
         {filteredQuizzes.length > 0 ? (
           filteredQuizzes.map((quiz) => {
             const hasScore = quiz.bestScore !== undefined && quiz.bestScore !== null;
+            const diffMeta = (() => {
+              const d = (quiz.difficulty || "medium").toLowerCase();
+              if (d === "easy") {
+                return {
+                  label: "Easy",
+                  bg: isDark ? "rgba(16, 185, 129, 0.18)" : "#ECFDF5",
+                  color: isDark ? "#34D399" : "#059669",
+                  borderColor: isDark ? "rgba(16, 185, 129, 0.35)" : "#A7F3D0",
+                };
+              } else if (d === "hard") {
+                return {
+                  label: "Hard",
+                  bg: isDark ? "rgba(239, 68, 68, 0.18)" : "#FEF2F2",
+                  color: isDark ? "#FCA5A5" : "#DC2626",
+                  borderColor: isDark ? "rgba(239, 68, 68, 0.35)" : "#FCA5A5",
+                };
+              }
+              return {
+                label: "Medium",
+                bg: isDark ? "rgba(99, 102, 241, 0.18)" : "#EEF2FF",
+                color: isDark ? "#A5B4FC" : "#4F46E5",
+                borderColor: isDark ? "rgba(99, 102, 241, 0.35)" : "#C7D2FE",
+              };
+            })();
+
             return (
               <TouchableOpacity
                 key={quiz.id}
@@ -239,14 +264,19 @@ export default function MyQuizzes() {
                       <Text style={[styles.quizName, { color: colors.text }]} numberOfLines={1}>
                         {quiz.title}
                       </Text>
-                      {hasScore ? (
-                        <View style={[styles.scoreBadge, isDark && { backgroundColor: "#1E1B4B" }]}>
-                          <Text style={styles.scoreBadgeText}>{quiz.bestScore}%</Text>
-                          <Ionicons name="checkmark" size={12} color="#8B5CF6" style={{ marginLeft: 2 }} />
+                      <View style={styles.badgeGroup}>
+                        <View style={[styles.difficultyBadge, { backgroundColor: diffMeta.bg, borderColor: diffMeta.borderColor }]}>
+                          <Text style={[styles.difficultyText, { color: diffMeta.color }]}>{diffMeta.label}</Text>
                         </View>
-                      ) : (
-                        <Text style={styles.newBadgeText}>Ready</Text>
-                      )}
+                        {hasScore ? (
+                          <View style={[styles.scoreBadge, isDark && { backgroundColor: "#1E1B4B" }]}>
+                            <Text style={styles.scoreBadgeText}>{quiz.bestScore}%</Text>
+                            <Ionicons name="checkmark" size={12} color="#8B5CF6" style={{ marginLeft: 2 }} />
+                          </View>
+                        ) : (
+                          <Text style={styles.newBadgeText}>Ready</Text>
+                        )}
+                      </View>
                     </View>
                     <Text style={[styles.quizMeta, { color: colors.textSecondary }]}>
                       {quiz.category || "General"} • {quiz.questions?.length || quiz.questionsCount || 4} questions
@@ -459,6 +489,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 4,
+  },
+  badgeGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  difficultyBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  difficultyText: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
   quizName: {
     fontSize: 15,
