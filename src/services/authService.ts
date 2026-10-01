@@ -83,12 +83,16 @@ export const authService = {
       fbUser.displayName ||
       (fbUser.email ? fbUser.email.split('@')[0] : 'Learner');
 
-    const rawStreak = firestoreData?.streak ?? 1;
+    const rawStreak = firestoreData?.streak ?? 0;
     const rawLastActiveDate = firestoreData?.lastActiveDate;
     const rawLongestStreak = firestoreData?.longestStreak ?? rawStreak;
 
-    // Evaluate streak validity
-    const evaluation = evaluateStreak(rawStreak, rawLastActiveDate, rawLongestStreak);
+    // Calculate calendar daily streak (resets after 12:00 AM midnight, adds +1 when logging in on consecutive days)
+    const streakResult = recordDailyActivityStreak(
+      rawStreak,
+      rawLastActiveDate,
+      rawLongestStreak
+    );
 
     const profile: UserProfile = {
       uid: fbUser.uid,
@@ -96,9 +100,9 @@ export const authService = {
       displayName,
       photoURL,
       isGuest: fbUser.isAnonymous,
-      streak: evaluation.currentStreak,
-      lastActiveDate: evaluation.lastActiveDate,
-      longestStreak: evaluation.longestStreak,
+      streak: streakResult.newStreak,
+      lastActiveDate: streakResult.lastActiveDate,
+      longestStreak: streakResult.newLongestStreak,
       quizzesTaken: firestoreData?.quizzesTaken ?? 0,
       avgScore: firestoreData?.avgScore ?? 0,
       totalXP: firestoreData?.totalXP ?? 100,
@@ -109,12 +113,17 @@ export const authService = {
         new Date().toISOString(),
     };
 
-    // If streak changed due to break, sync updated streak back to Firestore
-    if (db && evaluation.isBroken && firestoreData) {
+    // Sync updated streak state directly to Firestore
+    if (db && fbUser.uid) {
       try {
         setDoc(
           doc(db, 'users', fbUser.uid),
-          { streak: 0, longestStreak: evaluation.longestStreak },
+          {
+            streak: streakResult.newStreak,
+            longestStreak: streakResult.newLongestStreak,
+            lastActiveDate: streakResult.lastActiveDate,
+            updatedAt: new Date().toISOString(),
+          },
           { merge: true }
         ).catch(() => {});
       } catch {}
