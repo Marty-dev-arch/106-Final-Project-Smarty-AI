@@ -23,7 +23,6 @@ import Animated, {
 
 import { RootStackParamList } from "../../types/navigation";
 import { useAuth } from "../../context/AuthContext";
-import { useTheme } from "../../context/ThemeContext";
 import { triggerHaptic } from "../../utils/haptics";
 import BlinkingMascot from "../../components/common/BlinkingMascot";
 
@@ -32,7 +31,6 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 export default function Welcome() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
-  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
   // Auto redirect if already signed in
@@ -81,11 +79,11 @@ export default function Welcome() {
 
   return (
     <View style={styles.root}>
-      {/* Clean Subtle Deep Navy/Indigo Backdrop */}
+      {/* Crisp, modern light background with very subtle ambient top tint */}
       <LinearGradient
-        colors={["#0F0C24", "#0A0818", "#070512"]}
+        colors={["#F8F7FF", "#FFFFFF", "#FFFFFF"]}
         start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
+        end={{ x: 0.5, y: 0.45 }}
         style={StyleSheet.absoluteFill}
       />
 
@@ -93,7 +91,7 @@ export default function Welcome() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: Math.max(insets.top + 32, 60),
+            paddingTop: Math.max(insets.top + 32, 64),
             paddingBottom: Math.max(insets.bottom + 24, 36),
           },
         ]}
@@ -102,7 +100,7 @@ export default function Welcome() {
         {/* ─── Hero Mascot Block ─────────────────────────────────────────── */}
         <Animated.View style={[styles.heroBlock, heroAnimStyle]}>
           <View style={styles.mascotContainer}>
-            <BlinkingMascot size={88} />
+            <BlinkingMascot size={90} />
           </View>
         </Animated.View>
 
@@ -113,27 +111,27 @@ export default function Welcome() {
             Turn any document, slide deck, or lecture notes into interactive quizzes you'll actually master.
           </Text>
 
-          {/* ─── Clean Feature Highlights (Industry Standard) ───────────────── */}
+          {/* ─── Clean Modern Feature Pills (Light Theme) ───────────────────── */}
           <View style={styles.featuresRow}>
-            <View style={styles.featurePill}>
-              <View style={[styles.featureIconWrap, { backgroundColor: "rgba(99, 102, 241, 0.15)" }]}>
-                <Ionicons name="document-text-outline" size={16} color="#818CF8" />
+            <View style={[styles.featurePill, { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" }]}>
+              <View style={[styles.featureIconWrap, { backgroundColor: "#EDE9FE" }]}>
+                <Ionicons name="document-text" size={15} color="#6D28D9" />
               </View>
-              <Text style={styles.featureText}>Notes to Quiz</Text>
+              <Text style={[styles.featureText, { color: "#4C1D95" }]}>Notes to Quiz</Text>
             </View>
 
-            <View style={styles.featurePill}>
-              <View style={[styles.featureIconWrap, { backgroundColor: "rgba(245, 158, 11, 0.15)" }]}>
-                <Ionicons name="flame" size={16} color="#FBBF24" />
+            <View style={[styles.featurePill, { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" }]}>
+              <View style={[styles.featureIconWrap, { backgroundColor: "#FEF3C7" }]}>
+                <Ionicons name="flame" size={15} color="#D97706" />
               </View>
-              <Text style={styles.featureText}>Streak Sync</Text>
+              <Text style={[styles.featureText, { color: "#78350F" }]}>Streak Sync</Text>
             </View>
 
-            <View style={styles.featurePill}>
-              <View style={[styles.featureIconWrap, { backgroundColor: "rgba(16, 185, 129, 0.15)" }]}>
-                <Ionicons name="trending-up" size={16} color="#34D399" />
+            <View style={[styles.featurePill, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+              <View style={[styles.featureIconWrap, { backgroundColor: "#D1FAE5" }]}>
+                <Ionicons name="trending-up" size={15} color="#059669" />
               </View>
-              <Text style={styles.featureText}>Mastery Score</Text>
+              <Text style={[styles.featureText, { color: "#064E3B" }]}>Mastery Score</Text>
             </View>
           </View>
         </Animated.View>
@@ -186,7 +184,7 @@ export default function Welcome() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#0A0818",
+    backgroundColor: "#FFFFFF",
   },
   scrollContent: {
     flexGrow: 1,
@@ -199,23 +197,23 @@ const styles = StyleSheet.create({
   heroBlock: {
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 10,
+    marginTop: 12,
     marginBottom: 24,
   },
   mascotContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "#16132D",
-    borderWidth: 1.5,
-    borderColor: "#2E2954",
+    width: 124,
+    height: 124,
+    borderRadius: 62,
+    backgroundColor: "#F5F3FF",
+    borderWidth: 2,
+    borderColor: "#E0E7FF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    elevation: 8,
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 6,
   },
 
   // Typography Block
@@ -227,14 +225,14 @@ const styles = StyleSheet.create({
   brandTitle: {
     fontSize: 34,
     fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: -0.6,
+    color: "#0F172A",
+    letterSpacing: -0.8,
     textAlign: "center",
     marginBottom: 10,
   },
   heroTagline: {
     fontSize: 15,
-    color: "#94A3B8",
+    color: "#64748B",
     textAlign: "center",
     lineHeight: 22,
     fontWeight: "400",
@@ -253,9 +251,7 @@ const styles = StyleSheet.create({
   featurePill: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#16132D",
     borderWidth: 1,
-    borderColor: "#26214A",
     borderRadius: 24,
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -270,8 +266,8 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: 12.5,
-    fontWeight: "600",
-    color: "#E2E8F0",
+    fontWeight: "700",
+    letterSpacing: -0.1,
   },
 
   // Actions Section
@@ -288,9 +284,9 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 12,
     shadowColor: "#6366F1",
-    shadowOpacity: 0.35,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
+    shadowOpacity: 0.28,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 14,
     elevation: 6,
   },
   primaryGradient: {
@@ -313,27 +309,27 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 50,
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#26214A",
-    backgroundColor: "#16132D",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
   },
   secondaryBtnText: {
     fontSize: 15,
-    fontWeight: "600",
-    color: "#E2E8F0",
+    fontWeight: "700",
+    color: "#334155",
     letterSpacing: -0.2,
   },
   termsNote: {
     fontSize: 12,
-    color: "#64748B",
+    color: "#94A3B8",
     textAlign: "center",
     lineHeight: 17,
   },
   termsLink: {
-    color: "#818CF8",
+    color: "#6366F1",
     fontWeight: "600",
   },
 });
