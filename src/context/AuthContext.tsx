@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile } from '../types/auth';
 import { authService } from '../services/authService';
 import { storageService } from '../services/storageService';
+import { db, isFirebaseInitialized } from '../config/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -160,6 +162,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!prev) return null;
       const updated = { ...prev, ...updates };
       storageService.saveUser(updated);
+      if (isFirebaseInitialized && db && prev.uid) {
+        setDoc(doc(db, 'users', prev.uid), updates, { merge: true }).catch(() => {});
+      }
       return updated;
     });
   };

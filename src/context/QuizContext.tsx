@@ -46,7 +46,7 @@ interface QuizContextType {
 const QuizContext = createContext<QuizContextType | undefined>(undefined);
 
 export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { refreshUser, user } = useAuth();
+  const { refreshUser, updateUser, user } = useAuth();
   const { sendNotification } = useNotifications();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
@@ -300,16 +300,8 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserAnswers({});
       setCurrentQuestionIndex(0);
 
-      // Reset User profile quiz stats locally and refresh auth context
-      const userProfile = await storageService.getUser();
-      if (userProfile) {
-        const updatedUser = {
-          ...userProfile,
-          quizzesTaken: 0,
-          avgScore: 0,
-        };
-        await storageService.saveUser(updatedUser);
-      }
+      // Reset User profile quiz stats locally, in Firestore, and reactively in AuthContext
+      await updateUser({ quizzesTaken: 0, avgScore: 0 });
       await refreshUser();
     } catch (e) {
       console.warn('Error deleting all quizzes and files:', e);

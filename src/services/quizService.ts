@@ -345,8 +345,17 @@ export const quizService = {
           deleteOps.push(deleteDoc(doc(db!, 'users', effUid, 'materials', d.id)));
         });
 
+        // Reset user quizzesTaken and avgScore stats in Firestore user doc
+        deleteOps.push(
+          setDoc(
+            doc(db!, 'users', effUid),
+            { quizzesTaken: 0, avgScore: 0 },
+            { merge: true }
+          )
+        );
+
         await Promise.all(deleteOps);
-        console.log('[quizService] All user quizzes & files deleted from Firestore.');
+        console.log('[quizService] All user quizzes, files, and stats deleted/reset in Firestore.');
       } catch (err) {
         console.warn('[quizService] Error deleting user quizzes/files from Firestore:', err);
       }
