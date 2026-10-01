@@ -36,186 +36,142 @@ function letterOf(n: number): string {
 // ─── Shared CSS design tokens ─────────────────────────────────────────────────
 
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-    background: #F8F7FF;
-    color: #111827;
+    font-family: 'Inter', Arial, sans-serif;
+    background: #F8FAFC;
+    color: #0F172A;
     padding: 0;
   }
   .page {
-    max-width: 820px;
+    max-width: 800px;
     margin: 0 auto;
     background: #fff;
-    padding: 48px 52px;
+    padding: 40px 48px;
     min-height: 100vh;
   }
   @media print {
     body { background: #fff; }
-    .page { padding: 30px 40px; }
+    .page { padding: 24px 32px; width: 100%; }
     .no-print { display: none !important; }
+    .page-break { page-break-before: always; }
   }
-  .header {
-    border-bottom: 3px solid #4648D4;
-    padding-bottom: 18px;
-    margin-bottom: 28px;
+  .student-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #475569;
+    border-bottom: 2px solid #0F172A;
+    padding-bottom: 12px;
+    margin-bottom: 20px;
   }
-  .badge {
-    display: inline-block;
-    background: #4648D4;
-    color: #fff;
-    font-size: 11px;
+  .quiz-title {
+    font-size: 22px;
     font-weight: 700;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    padding: 4px 10px;
-    border-radius: 20px;
-    margin-bottom: 10px;
-  }
-  h1 {
-    font-size: 26px;
-    font-weight: 800;
-    color: #1E1B4B;
-    line-height: 1.2;
+    color: #0F172A;
     margin-bottom: 6px;
   }
   .meta-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    margin-top: 14px;
-    padding: 14px 18px;
-    background: #F5F3FF;
-    border-radius: 10px;
-    border-left: 4px solid #6D44F2;
+    font-size: 12px;
+    color: #64748B;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed #CBD5E1;
   }
-  .meta-item { font-size: 13px; color: #374151; }
-  .meta-item strong { color: #4648D4; }
   .q-block {
-    margin-bottom: 28px;
-    border: 1px solid #E5E7EB;
-    border-radius: 14px;
-    overflow: hidden;
-  }
-  .q-header {
-    background: #F5F3FF;
-    padding: 14px 18px;
-    border-bottom: 1px solid #E5E7EB;
-  }
-  .q-num {
-    font-size: 11px;
-    font-weight: 700;
-    color: #6D44F2;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 4px;
+    margin-bottom: 20px;
+    page-break-inside: avoid;
   }
   .q-prompt {
-    font-size: 16px;
-    font-weight: 700;
-    color: #1E1B4B;
-    line-height: 1.5;
+    font-size: 15px;
+    font-weight: 600;
+    color: #0F172A;
+    line-height: 1.4;
+    margin-bottom: 10px;
   }
-  .q-body { padding: 14px 18px; }
-  .opt-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .opt-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
   .opt {
     display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 10px 14px;
-    border-radius: 8px;
-    border: 1.5px solid #E5E7EB;
-    font-size: 14px;
-    color: #374151;
-    background: #FAFAFA;
-  }
-  .opt.correct {
-    background: #ECFDF5;
-    border-color: #10B981;
-    color: #065F46;
-    font-weight: 700;
-  }
-  .opt-letter {
-    flex-shrink: 0;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: #E5E7EB;
-    display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 12px;
+    gap: 10px;
+    font-size: 14px;
+    color: #334155;
+    padding: 4px 0;
+  }
+  .opt-bubble {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid #64748B;
+    display: inline-block;
+  }
+  .answer-key-section {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 2px dashed #0F172A;
+  }
+  .answer-key-title {
+    font-size: 18px;
     font-weight: 700;
-    color: #374151;
+    color: #0F172A;
+    margin-bottom: 14px;
   }
-  .opt.correct .opt-letter { background: #10B981; color: #fff; }
-  .check-mark { margin-left: auto; color: #10B981; font-weight: 800; }
-  .explanation {
-    margin-top: 12px;
-    background: #FFFBEB;
-    border-left: 3px solid #F59E0B;
-    border-radius: 6px;
-    padding: 10px 14px;
+  .key-item {
     font-size: 13px;
-    color: #78350F;
-    line-height: 1.5;
-  }
-  .explanation strong { color: #B45309; }
-  .footer {
-    margin-top: 40px;
-    padding-top: 16px;
-    border-top: 1px solid #E5E7EB;
-    font-size: 12px;
-    color: #9CA3AF;
-    text-align: center;
+    color: #1E293B;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    background: #F8FAFC;
+    border-left: 3px solid #4F46E5;
+    border-radius: 4px;
   }
   .print-btn {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    margin-top: 24px;
-    padding: 12px 24px;
-    background: #4648D4;
+    padding: 10px 20px;
+    background: #4F46E5;
     color: #fff;
     border: none;
-    border-radius: 10px;
+    border-radius: 8px;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
   }
 `;
 
-// ─── PDF (print-ready HTML) ────────────────────────────────────────────────────
+// ─── PDF (Clean Student Quiz Paper) ──────────────────────────────────────────
 
 function generatePdfHtml(quiz: Quiz, attempt?: QuizAttempt | null): string {
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const scoreHtml = attempt
-    ? `<div class="meta-item"><strong>Score:</strong> ${attempt.score}/${attempt.totalQuestions} (${attempt.percentage}%)</div>`
-    : '';
 
-  let questionsHtml = '';
+  // Student Question Sheet HTML (NO correct answers / green colors on question pages)
+  let studentQuestionsHtml = '';
   quiz.questions.forEach((q, idx) => {
-    const optionsHtml = q.options.map((opt, oIdx) => {
-      const isCorrect = oIdx === q.correctAnswer;
-      return `
-        <li class="opt ${isCorrect ? 'correct' : ''}">
-          <span class="opt-letter">${letterOf(oIdx)}</span>
-          <span>${escapeXml(opt)}</span>
-          ${isCorrect ? '<span class="check-mark">✓ Correct</span>' : ''}
-        </li>`;
-    }).join('');
+    const optionsHtml = q.options.map((opt, oIdx) => `
+      <li class="opt">
+        <span class="opt-bubble"></span>
+        <span><strong>${letterOf(oIdx)}.</strong> ${escapeXml(opt)}</span>
+      </li>
+    `).join('');
 
-    questionsHtml += `
+    studentQuestionsHtml += `
       <div class="q-block">
-        <div class="q-header">
-          <div class="q-num">Question ${idx + 1} of ${quiz.questions.length}</div>
-          <div class="q-prompt">${escapeXml(q.prompt)}</div>
-        </div>
-        <div class="q-body">
-          <ul class="opt-list">${optionsHtml}</ul>
-          ${q.explanation ? `<div class="explanation"><strong>💡 Concept Key:</strong> ${escapeXml(q.explanation)}</div>` : ''}
-        </div>
+        <div class="q-prompt">${idx + 1}. ${escapeXml(q.prompt)}</div>
+        <ul class="opt-list">${optionsHtml}</ul>
+      </div>`;
+  });
+
+  // Answer Key Section (Placed on a clean separate page for instructors)
+  let answerKeyHtml = '';
+  quiz.questions.forEach((q, idx) => {
+    const correctIdx = typeof q.correctAnswer === 'number' ? q.correctAnswer : parseInt(String(q.correctAnswer), 10) || 0;
+    const correctOptText = q.options[correctIdx] || '';
+    answerKeyHtml += `
+      <div class="key-item">
+        <strong>Q${idx + 1}: ${letterOf(correctIdx)}. ${escapeXml(correctOptText)}</strong>
+        ${q.explanation ? `<div style="margin-top:4px;color:#475569;font-size:12px;">Explanation: ${escapeXml(q.explanation)}</div>` : ''}
       </div>`;
   });
 
@@ -223,67 +179,73 @@ function generatePdfHtml(quiz: Quiz, attempt?: QuizAttempt | null): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeXml(quiz.title)} — Smarty AI Quiz</title>
+  <title>${escapeXml(quiz.title)} — Student Quiz Sheet</title>
   <style>${CSS}</style>
 </head>
 <body>
 <div class="page">
-  <div class="header">
-    <span class="badge">Smarty AI</span>
-    <h1>${escapeXml(quiz.title)}</h1>
-    <div class="meta-row">
-      <div class="meta-item"><strong>Category:</strong> ${escapeXml(quiz.category || 'General Knowledge')}</div>
-      <div class="meta-item"><strong>Difficulty:</strong> ${quiz.difficulty.toUpperCase()}</div>
-      <div class="meta-item"><strong>Questions:</strong> ${quiz.questionsCount}</div>
-      <div class="meta-item"><strong>Generated:</strong> ${date}</div>
-      ${scoreHtml}
-    </div>
+  <div class="student-header">
+    <div><strong>Name:</strong> ____________________________________</div>
+    <div><strong>Date:</strong> _______________</div>
+    <div><strong>Score:</strong> ______ / ${quiz.questionsCount}</div>
   </div>
 
-  ${questionsHtml}
+  <h1 class="quiz-title">${escapeXml(quiz.title)}</h1>
+  <div class="meta-row">
+    Subject / Category: ${escapeXml(quiz.category || 'General')} &nbsp;|&nbsp; 
+    Difficulty: ${quiz.difficulty.toUpperCase()} &nbsp;|&nbsp; 
+    Total Questions: ${quiz.questionsCount}
+  </div>
 
-  <div class="footer">Generated by Smarty AI — ${date}</div>
+  <!-- Student Questions -->
+  ${studentQuestionsHtml}
+
+  <!-- Page Break for Answer Key -->
+  <div class="page-break answer-key-section">
+    <div class="answer-key-title">🔑 ANSWER KEY & EXPLANATIONS (Instructor Reference)</div>
+    ${answerKeyHtml}
+  </div>
 
   <div class="no-print" style="text-align:center;padding:24px 0;">
     <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
   </div>
 </div>
 <script>
-  // Auto-trigger print for PDF saving
   window.onload = function() { setTimeout(function(){ window.print(); }, 800); };
 </script>
 </body>
 </html>`;
 }
 
-// ─── Word (.docx via HTML-in-Word format) ─────────────────────────────────────
+// ─── Word (.docx Clean Student Layout) ──────────────────────────────────────
 
 function generateDocxHtml(quiz: Quiz, attempt?: QuizAttempt | null): string {
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
   let questionsHtml = '';
   quiz.questions.forEach((q, idx) => {
-    const optionsHtml = q.options.map((opt, oIdx) => {
-      const isCorrect = oIdx === q.correctAnswer;
-      const marker = isCorrect ? '✓' : '○';
-      const style = isCorrect
-        ? 'background:#ECFDF5;color:#065F46;font-weight:bold;border:1px solid #10B981;'
-        : 'background:#F9FAFB;color:#374151;border:1px solid #E5E7EB;';
-      return `<p style="padding:8px 12px;border-radius:6px;margin:5px 0;font-size:13px;${style}">${marker} ${letterOf(oIdx)}. ${escapeXml(opt)}</p>`;
-    }).join('');
+    const optionsHtml = q.options.map((opt, oIdx) => `
+      <p style="margin:4px 0 4px 18px;font-size:13px;color:#334155;">
+        ( &nbsp; ) <strong>${letterOf(oIdx)}.</strong> ${escapeXml(opt)}
+      </p>
+    `).join('');
 
     questionsHtml += `
-      <div style="margin-bottom:22px;border:1px solid #E5E7EB;border-radius:10px;overflow:hidden;">
-        <div style="background:#F5F3FF;padding:14px 18px;border-bottom:1px solid #E5E7EB;">
-          <p style="font-size:11px;color:#6D44F2;font-weight:bold;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Question ${idx + 1}</p>
-          <p style="font-size:15px;font-weight:bold;color:#1E1B4B;line-height:1.5;">${escapeXml(q.prompt)}</p>
-        </div>
-        <div style="padding:14px 18px;">
-          ${optionsHtml}
-          ${q.explanation ? `<div style="margin-top:10px;background:#FFFBEB;border-left:3px solid #F59E0B;padding:10px 14px;font-size:12px;color:#78350F;border-radius:4px;"><strong>💡 Concept Key:</strong> ${escapeXml(q.explanation)}</div>` : ''}
-        </div>
+      <div style="margin-bottom:18px;">
+        <p style="font-size:14px;font-weight:bold;color:#0F172A;margin-bottom:6px;">${idx + 1}. ${escapeXml(q.prompt)}</p>
+        ${optionsHtml}
       </div>`;
+  });
+
+  let answerKeyHtml = '';
+  quiz.questions.forEach((q, idx) => {
+    const correctIdx = typeof q.correctAnswer === 'number' ? q.correctAnswer : parseInt(String(q.correctAnswer), 10) || 0;
+    const correctOptText = q.options[correctIdx] || '';
+    answerKeyHtml += `
+      <p style="font-size:12px;margin-bottom:6px;color:#1E293B;">
+        <strong>Q${idx + 1}: ${letterOf(correctIdx)}. ${escapeXml(correctOptText)}</strong>
+        ${q.explanation ? `<br/><span style="color:#64748B;font-size:11px;">Explanation: ${escapeXml(q.explanation)}</span>` : ''}
+      </p>`;
   });
 
   return `<html xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -294,36 +256,38 @@ function generateDocxHtml(quiz: Quiz, attempt?: QuizAttempt | null): string {
   <title>${escapeXml(quiz.title)}</title>
   <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>90</w:Zoom></w:WordDocument></xml><![endif]-->
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; color: #111827; }
-    h1 { color: #4648D4; font-size: 24px; border-bottom: 3px solid #4648D4; padding-bottom: 10px; margin-bottom: 6px; }
+    body { font-family: 'Arial', sans-serif; margin: 40px; color: #0F172A; }
+    h1 { color: #0F172A; font-size: 20px; border-bottom: 2px solid #0F172A; padding-bottom: 6px; margin-bottom: 16px; }
   </style>
 </head>
 <body>
-  <p style="display:inline-block;background:#4648D4;color:#fff;font-size:11px;font-weight:bold;padding:4px 10px;border-radius:20px;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Smarty AI</p>
-  <h1>${escapeXml(quiz.title)}</h1>
-  <div style="background:#F5F3FF;padding:14px 18px;border-radius:10px;border-left:4px solid #6D44F2;margin:16px 0 28px;">
-    <p style="font-size:13px;color:#374151;margin-bottom:4px;"><strong style="color:#4648D4;">Category:</strong> ${escapeXml(quiz.category || 'General Knowledge')}</p>
-    <p style="font-size:13px;color:#374151;margin-bottom:4px;"><strong style="color:#4648D4;">Difficulty:</strong> ${quiz.difficulty.toUpperCase()}</p>
-    <p style="font-size:13px;color:#374151;margin-bottom:4px;"><strong style="color:#4648D4;">Questions:</strong> ${quiz.questionsCount}</p>
-    ${attempt ? `<p style="font-size:13px;color:#374151;"><strong style="color:#4648D4;">Score:</strong> ${attempt.score}/${attempt.totalQuestions} (${attempt.percentage}%)</p>` : ''}
-    <p style="font-size:13px;color:#374151;margin-top:4px;"><strong style="color:#4648D4;">Generated:</strong> ${date}</p>
+  <div style="border-bottom:1px solid #CBD5E1;padding-bottom:10px;margin-bottom:16px;">
+    <p style="font-size:13px;color:#475569;">
+      <strong>Name:</strong> ____________________________________ &nbsp;&nbsp;&nbsp;&nbsp;
+      <strong>Date:</strong> _______________ &nbsp;&nbsp;&nbsp;&nbsp;
+      <strong>Score:</strong> ______ / ${quiz.questionsCount}
+    </p>
   </div>
+
+  <h1>${escapeXml(quiz.title)}</h1>
+  <p style="font-size:12px;color:#64748B;margin-bottom:20px;">
+    Category: ${escapeXml(quiz.category || 'General')} &nbsp;|&nbsp; Difficulty: ${quiz.difficulty.toUpperCase()}
+  </p>
+
   ${questionsHtml}
-  <p style="margin-top:40px;padding-top:14px;border-top:1px solid #E5E7EB;font-size:12px;color:#9CA3AF;text-align:center;">Generated by Smarty AI — ${date}</p>
+
+  <br/><br/>
+  <div style="page-break-before:always;border-top:2px dashed #0F172A;padding-top:16px;">
+    <h2 style="font-size:16px;color:#0F172A;">🔑 ANSWER KEY (Instructor Reference)</h2>
+    ${answerKeyHtml}
+  </div>
 </body>
 </html>`;
 }
 
-// ─── PPTX (Open XML via PresentationML) ───────────────────────────────────────
-//
-// We build a minimal but valid Open XML PPTX in memory as a text-based ZIP,
-// then trigger browser download. This uses a simple approach where each file is
-// stored as a Stored (compression=0) entry in the ZIP so no zip library is needed.
+// ─── PPTX (Clean Classroom Presentation Deck) ──────────────────────────────────
 
 function buildPptxZip(quiz: Quiz): ArrayBuffer {
-  // ── Slide helpers ───────────────────────────────────────────────────────────
-
   function titleSlide(): string {
     const t = escapeXml(quiz.title);
     const sub = escapeXml(`${quiz.category || 'General'} · ${quiz.difficulty.toUpperCase()} · ${quiz.questionsCount} Questions`);
@@ -339,11 +303,11 @@ function buildPptxZip(quiz: Quiz): ArrayBuffer {
       <p:sp><p:nvSpPr><p:cNvPr id="2" name="bg"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
         <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
         <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
-        <a:solidFill><a:srgbClr val="4648D4"/></a:solidFill></p:spPr>
+        <a:solidFill><a:srgbClr val="1E293B"/></a:solidFill></p:spPr>
         <p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>
       <!-- Title -->
       <p:sp><p:nvSpPr><p:cNvPr id="3" name="title"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
-        <p:spPr><a:xfrm><a:off x="457200" y="1800000"/><a:ext cx="8229600" cy="1440000"/></a:xfrm>
+        <p:spPr><a:xfrm><a:off x="457200" y="2200000"/><a:ext cx="8229600" cy="1440000"/></a:xfrm>
         <a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>
         <p:txBody><a:bodyPr wrap="square" rtlCol="0"/>
           <a:lstStyle/>
@@ -351,32 +315,20 @@ function buildPptxZip(quiz: Quiz): ArrayBuffer {
             <a:t>${t}</a:t></a:r></a:p></p:txBody></p:sp>
       <!-- Subtitle -->
       <p:sp><p:nvSpPr><p:cNvPr id="4" name="sub"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
-        <p:spPr><a:xfrm><a:off x="457200" y="3420000"/><a:ext cx="8229600" cy="800000"/></a:xfrm>
+        <p:spPr><a:xfrm><a:off x="457200" y="3800000"/><a:ext cx="8229600" cy="800000"/></a:xfrm>
         <a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>
         <p:txBody><a:bodyPr wrap="square"/>
           <a:lstStyle/>
-          <a:p><a:r><a:rPr lang="en-US" sz="1800" dirty="0"/><a:solidFill><a:srgbClr val="C7C3FF"/></a:solidFill>
+          <a:p><a:r><a:rPr lang="en-US" sz="1800" dirty="0"/><a:solidFill><a:srgbClr val="94A3B8"/></a:solidFill>
             <a:t>${sub}</a:t></a:r></a:p></p:txBody></p:sp>
-      <!-- Smarty AI badge -->
-      <p:sp><p:nvSpPr><p:cNvPr id="5" name="badge"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
-        <p:spPr><a:xfrm><a:off x="457200" y="5800000"/><a:ext cx="1800000" cy="360000"/></a:xfrm>
-        <a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 25000"/></a:avLst></a:prstGeom>
-        <a:solidFill><a:srgbClr val="FFFFFF"><a:alpha val="25000"/></a:srgbClr></a:solidFill></p:spPr>
-        <p:txBody><a:bodyPr anchor="ctr"/><a:lstStyle/>
-          <a:p><a:r><a:rPr lang="en-US" sz="1100" b="1" dirty="0"/><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>
-            <a:t>✦ SMARTY AI</a:t></a:r></a:p></p:txBody></p:sp>
     </p:spTree>
   </p:cSld>
 </p:sld>`;
   }
 
-  function questionSlide(q: { prompt: string; options: string[]; correctAnswer: number; explanation?: string }, idx: number): string {
+  function questionSlide(q: { prompt: string; options: string[] }, idx: number): string {
     const prompt = escapeXml(q.prompt);
-    const optionsText = q.options.map((o, i) => {
-      const check = i === q.correctAnswer ? ' ✓' : '';
-      return `• ${letterOf(i)}.  ${escapeXml(o)}${check}`;
-    }).join('&#xA;');
-    const expText = q.explanation ? escapeXml('💡 ' + q.explanation) : '';
+    const optionsText = q.options.map((o, i) => `• ${letterOf(i)}.  ${escapeXml(o)}`).join('&#xA;');
 
     return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
@@ -388,40 +340,30 @@ function buildPptxZip(quiz: Quiz): ArrayBuffer {
       <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm></p:grpSpPr>
       <!-- Q number pill -->
       <p:sp><p:nvSpPr><p:cNvPr id="2" name="pill"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
-        <p:spPr><a:xfrm><a:off x="457200" y="330000"/><a:ext cx="900000" cy="330000"/></a:xfrm>
+        <p:spPr><a:xfrm><a:off x="457200" y="400000"/><a:ext cx="900000" cy="330000"/></a:ext>
         <a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 50000"/></a:avLst></a:prstGeom>
-        <a:solidFill><a:srgbClr val="EDE9FF"/></a:solidFill></p:spPr>
+        <a:solidFill><a:srgbClr val="EEF2FF"/></a:solidFill></p:spPr>
         <p:txBody><a:bodyPr anchor="ctr"/><a:lstStyle/>
-          <a:p><a:r><a:rPr lang="en-US" sz="1000" b="1" dirty="0"/><a:solidFill><a:srgbClr val="4648D4"/></a:solidFill>
-            <a:t>Q${idx + 1}</a:t></a:r></a:p></p:txBody></p:sp>
+          <a:p><a:r><a:rPr lang="en-US" sz="1100" b="1" dirty="0"/><a:solidFill><a:srgbClr val="4F46E5"/></a:solidFill>
+            <a:t>Question ${idx + 1}</a:t></a:r></a:p></p:txBody></p:sp>
       <!-- Question prompt -->
       <p:sp><p:nvSpPr><p:cNvPr id="3" name="prompt"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
-        <p:spPr><a:xfrm><a:off x="457200" y="750000"/><a:ext cx="8229600" cy="1200000"/></a:xfrm>
+        <p:spPr><a:xfrm><a:off x="457200" y="850000"/><a:ext cx="8229600" cy="1400000"/></a:xfrm>
         <a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>
         <p:txBody><a:bodyPr wrap="square"/>
           <a:lstStyle/>
-          <a:p><a:r><a:rPr lang="en-US" sz="2000" b="1" dirty="0"/><a:solidFill><a:srgbClr val="1E1B4B"/></a:solidFill>
+          <a:p><a:r><a:rPr lang="en-US" sz="2200" b="1" dirty="0"/><a:solidFill><a:srgbClr val="0F172A"/></a:solidFill>
             <a:t>${prompt}</a:t></a:r></a:p></p:txBody></p:sp>
       <!-- Options -->
       <p:sp><p:nvSpPr><p:cNvPr id="4" name="opts"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
-        <p:spPr><a:xfrm><a:off x="457200" y="2050000"/><a:ext cx="8229600" cy="3200000"/></a:xfrm>
+        <p:spPr><a:xfrm><a:off x="457200" y="2400000"/><a:ext cx="8229600" cy="3800000"/></a:xfrm>
         <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
-        <a:solidFill><a:srgbClr val="F5F3FF"/></a:solidFill>
-        <a:ln><a:solidFill><a:srgbClr val="E5E7EB"/></a:solidFill></a:ln></p:spPr>
+        <a:solidFill><a:srgbClr val="F8FAFC"/></a:solidFill>
+        <a:ln><a:solidFill><a:srgbClr val="E2E8F0"/></a:solidFill></a:ln></p:spPr>
         <p:txBody><a:bodyPr wrap="square" lIns="180000" rIns="180000" tIns="180000"/>
           <a:lstStyle/>
-          <a:p><a:r><a:rPr lang="en-US" sz="1400" dirty="0"/><a:solidFill><a:srgbClr val="374151"/></a:solidFill>
+          <a:p><a:r><a:rPr lang="en-US" sz="1500" dirty="0"/><a:solidFill><a:srgbClr val="334155"/></a:solidFill>
             <a:t>${optionsText}</a:t></a:r></a:p></p:txBody></p:sp>
-      ${expText ? `<!-- Explanation -->
-      <p:sp><p:nvSpPr><p:cNvPr id="5" name="exp"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
-        <p:spPr><a:xfrm><a:off x="457200" y="5350000"/><a:ext cx="8229600" cy="1000000"/></a:xfrm>
-        <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
-        <a:solidFill><a:srgbClr val="FFFBEB"/></a:solidFill>
-        <a:ln><a:solidFill><a:srgbClr val="F59E0B"/></a:solidFill></a:ln></p:spPr>
-        <p:txBody><a:bodyPr wrap="square" lIns="180000" rIns="180000" tIns="120000"/>
-          <a:lstStyle/>
-          <a:p><a:r><a:rPr lang="en-US" sz="1100" dirty="0"/><a:solidFill><a:srgbClr val="78350F"/></a:solidFill>
-            <a:t>${expText}</a:t></a:r></a:p></p:txBody></p:sp>` : ''}
     </p:spTree>
   </p:cSld>
 </p:sld>`;

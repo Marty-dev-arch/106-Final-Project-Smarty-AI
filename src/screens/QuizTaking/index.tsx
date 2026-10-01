@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -45,9 +46,14 @@ export default function QuizTaking() {
     deleteQuestionFromQuiz,
   } = useQuiz();
 
+  const { updateActiveQuiz } = useQuiz();
   const [finishing, setFinishing] = useState(false);
   const [timeSpent, setTimeSpent] = useState(0);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showAnswerKeyModal, setShowAnswerKeyModal] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameTitleInput, setRenameTitleInput] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   // ─── Customization / Edit Mode State ─────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
@@ -151,6 +157,22 @@ export default function QuizTaking() {
       alert("Failed to save changes.");
     } finally {
       setSavingEdit(false);
+    }
+  };
+
+  const handleSaveRenameQuiz = async () => {
+    if (!renameTitleInput.trim() || !quiz) return;
+    setRenaming(true);
+    try {
+      const updatedQuiz = { ...quiz, title: renameTitleInput.trim() };
+      await updateActiveQuiz(updatedQuiz);
+      triggerHaptic.success();
+      setShowRenameModal(false);
+    } catch (e) {
+      triggerHaptic.error();
+      alert("Failed to update quiz title.");
+    } finally {
+      setRenaming(false);
     }
   };
 
@@ -314,16 +336,34 @@ export default function QuizTaking() {
           />
         </View>
 
-        {/* Meta Row: Subject & Action Buttons (Edit Question & Export) */}
+        {/* Meta Row: Quiz Title & Action Buttons (Rename, Answer Key, Edit Question, Export) */}
         <View style={styles.metaRow}>
-          <View style={styles.subjectRow}>
+          <TouchableOpacity
+            style={styles.subjectRow}
+            onPress={() => {
+              setRenameTitleInput(quiz.title);
+              setShowRenameModal(true);
+            }}
+            activeOpacity={0.75}
+          >
             <Ionicons name="flask-outline" size={16} color="#1B1931" style={{ marginRight: 6 }} />
             <Text style={styles.subjectText} numberOfLines={1}>
-              {quiz.category || quiz.title}
+              {quiz.title}
             </Text>
-          </View>
+            <Ionicons name="pencil" size={13} color="#6D44F2" style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
 
           <View style={styles.metaActionsRight}>
+            {/* Answer Key Button */}
+            <TouchableOpacity
+              style={[styles.exportBtn, { borderColor: "#D1FAE5", backgroundColor: "#ECFDF5" }]}
+              onPress={() => setShowAnswerKeyModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="key-outline" size={14} color="#059669" style={{ marginRight: 4 }} />
+              <Text style={[styles.exportBtnText, { color: "#059669" }]}>Answer Key</Text>
+            </TouchableOpacity>
+
             {/* Toggle Edit Button */}
             <TouchableOpacity
               style={[styles.editToggleBtn, isEditing && styles.editToggleBtnActive]}
@@ -614,6 +654,126 @@ export default function QuizTaking() {
         onClose={() => setShowExportModal(false)}
         quiz={quiz}
       />
+
+      {/* Answer Key Modal Component */}
+      <Modal
+        visible={showAnswerKeyModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAnswerKeyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.answerKeyCard}>
+            <View style={styles.modalHeaderRow}>
+              <View style={styles.modalHeaderLeft}>
+                <Ionicons name="key" size={20} color="#10B981" style={{ marginRight: 8 }} />
+                <Text style={styles.modalHeaderTitle}>Quiz Answer Key</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowAnswerKeyModal(false)} style={{ padding: 4 }}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.answerKeySubtitle}>
+              {quiz.title} • {quiz.questions.length} Questions
+            </Text>
+
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              {quiz.questions.map((q, qIdx) => {
+                const correctIdx = typeof q.correctAnswer === 'number' ? q.correctAnswer : parseInt(String(q.correctAnswer), 10) || 0;
+                return (
+                  <View key={q.id || qIdx} style={styles.keyItemBox}>
+                    <Text style={styles.keyQuestionTitle}>
+                      Q{qIdx + 1}. {q.prompt}
+                    </Text>
+                    <View style={styles.keyOptionsCol}>
+                      {q.options.map((opt, oIdx) => {
+                        const isCorrect = oIdx === correctIdx;
+                        return (
+                          <View
+                            key={oIdx}
+                            style={[
+                              styles.keyOptRow,
+                              isCorrect && styles.keyOptRowCorrect,
+                            ]}
+                          >
+                            <Text style={[styles.keyOptLetter, isCorrect && { color: "#059669", fontWeight: "700" }]}>
+                              {OPTION_LETTERS[oIdx]}. {opt}
+                            </Text>
+                            {isCorrect && (
+                              <View style={styles.correctPill}>
+                                <Ionicons name="checkmark-circle" size={12} color="#059669" style={{ marginRight: 3 }} />
+                                <Text style={styles.correctPillText}>Correct Answer</Text>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                    {q.explanation ? (
+                      <View style={styles.keyExpBox}>
+                        <Text style={styles.keyExpText}>💡 {q.explanation}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setShowAnswerKeyModal(false)}
+            >
+              <Text style={styles.modalCloseBtnText}>Close Answer Key</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Rename Quiz Title Modal Component */}
+      <Modal
+        visible={showRenameModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRenameModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.renameCard}>
+            <Text style={styles.modalHeaderTitle}>Rename Quiz Title</Text>
+            <Text style={styles.answerKeySubtitle}>Enter a new title to update across all devices & Firestore:</Text>
+
+            <TextInput
+              style={styles.renameInput}
+              value={renameTitleInput}
+              onChangeText={setRenameTitleInput}
+              placeholder="Quiz Title"
+              placeholderTextColor="#94A3B8"
+              autoFocus
+            />
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => setShowRenameModal(false)}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.confirmBtn}
+                onPress={handleSaveRenameQuiz}
+                disabled={renaming}
+              >
+                {renaming ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>Save Title</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1171,5 +1331,151 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  answerKeyCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    elevation: 8,
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  modalHeaderTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  answerKeySubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+    marginBottom: 14,
+  },
+  keyItemBox: {
+    padding: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 10,
+  },
+  keyQuestionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 8,
+  },
+  keyOptionsCol: {
+    gap: 4,
+  },
+  keyOptRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  keyOptRowCorrect: {
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  keyOptLetter: {
+    fontSize: 13,
+    color: "#334155",
+  },
+  correctPill: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  correctPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  keyExpBox: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: "#FFFBEB",
+    borderLeftWidth: 3,
+    borderLeftColor: "#F59E0B",
+    borderRadius: 6,
+  },
+  keyExpText: {
+    fontSize: 12,
+    color: "#78350F",
+  },
+  modalCloseBtn: {
+    marginTop: 16,
+    paddingVertical: 12,
+    backgroundColor: "#4F46E5",
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  modalCloseBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  renameCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+  },
+  renameInput: {
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: "#0F172A",
+    marginBottom: 18,
+  },
+  modalBtnRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  cancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: "#F1F5F9",
+  },
+  cancelBtnText: {
+    color: "#64748B",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  confirmBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    backgroundColor: "#4F46E5",
+  },
+  confirmBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });
