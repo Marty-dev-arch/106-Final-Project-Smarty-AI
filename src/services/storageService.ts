@@ -187,6 +187,17 @@ export const storageService = {
         '@smarty_ai_uploaded_materials',
         '@smarty_ai_uploaded_files',
       ]);
+
+      const userData = await AsyncStorage.getItem(KEYS.USER);
+      if (userData) {
+        const parsed = JSON.parse(userData);
+        const resetUser = {
+          ...parsed,
+          quizzesTaken: 0,
+          avgScore: 0,
+        };
+        await AsyncStorage.setItem(KEYS.USER, JSON.stringify(resetUser));
+      }
     } catch (e) {
       console.warn('Error clearing quizzes and files from storage:', e);
     }

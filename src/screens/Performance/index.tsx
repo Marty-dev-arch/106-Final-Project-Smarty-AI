@@ -43,8 +43,8 @@ export default function Performance() {
     }
   }, [refreshData, refreshUser]);
 
-  const avgScore = user?.avgScore ?? 0;
-  const quizzesCount = user?.quizzesTaken ?? 0;
+  const quizzesCount = (user?.quizzesTaken ?? 0) === 0 || quizzes.length === 0 ? 0 : user?.quizzesTaken ?? 0;
+  const avgScore = quizzesCount === 0 ? 0 : user?.avgScore ?? 0;
   const estimatedQuestions = quizzesCount * 10;
   const estimatedCorrect = Math.round((estimatedQuestions * avgScore) / 100);
 

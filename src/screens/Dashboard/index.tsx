@@ -61,6 +61,9 @@ export default function Dashboard() {
     }
   };
 
+  const quizzesTaken = (user?.quizzesTaken ?? 0) === 0 || quizzes.length === 0 ? 0 : user?.quizzesTaken ?? 0;
+  const avgScore = quizzesTaken === 0 ? 0 : user?.avgScore ?? 0;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <TopBar title="Home" showLogo={true} showActions={true} />
@@ -146,7 +149,7 @@ export default function Dashboard() {
               navigation.navigate("MyQuizzes");
             }}
           >
-            <Text style={[styles.metricNumber, { color: colors.text }]}>{user?.quizzesTaken ?? 0}</Text>
+            <Text style={[styles.metricNumber, { color: colors.text }]}>{quizzesTaken}</Text>
             <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>QUIZZES</Text>
           </TouchableOpacity>
 
@@ -160,9 +163,7 @@ export default function Dashboard() {
               navigation.navigate("Performance");
             }}
           >
-            <Text style={[styles.metricNumber, { color: colors.text }]}>
-              {user?.avgScore !== undefined && user?.avgScore !== null ? `${user.avgScore}%` : "0%"}
-            </Text>
+            <Text style={[styles.metricNumber, { color: colors.text }]}>{avgScore}%</Text>
             <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>AVG. SCORE</Text>
           </TouchableOpacity>
 
