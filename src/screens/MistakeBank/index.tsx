@@ -71,15 +71,10 @@ const INITIAL_MISTAKES: MistakeItemData[] = [
 
 export default function MistakeBank() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { startMistakePractice } = useQuiz();
+  const { mistakes, startMistakePractice, clearMistake } = useQuiz();
 
-  const [activeFilter, setActiveFilter] = useState<string>("All (14)");
-  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({
-    m_1: false,
-    m_2: false,
-    m_3: false,
-  });
-  const [mistakesList, setMistakesList] = useState<MistakeItemData[]>(INITIAL_MISTAKES);
+  const [activeFilter, setActiveFilter] = useState<string>("All");
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
   const toggleAccordion = (id: string) => {
     setExpandedIds((prev) => ({
@@ -88,35 +83,43 @@ export default function MistakeBank() {
     }));
   };
 
-  const handleMarkMastered = (id: string) => {
-    setMistakesList((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, isMastered: !item.isMastered } : item
-      )
-    );
+  const handleMarkMastered = async (id: string) => {
+    await clearMistake(id);
   };
 
-  const handlePracticeSingle = () => {
-    startMistakePractice();
-    navigation.navigate("QuizTaking", { isMistakePractice: true });
+  const handlePracticeTopicOrAll = (topicName?: string) => {
+    const targetTopic = topicName || activeFilter;
+    const quiz = startMistakePractice(targetTopic === "All" ? undefined : targetTopic);
+    if (quiz) {
+      navigation.navigate("QuizTaking", { quizId: quiz.id });
+    }
   };
 
-  const handlePracticeAll = () => {
-    startMistakePractice();
-    navigation.navigate("QuizTaking", { isMistakePractice: true });
-  };
+  // Derive dynamic topic categories from recorded mistakes
+  const categoriesMap: Record<string, number> = {};
+  mistakes.forEach((m) => {
+    const title = m.quizTitle || m.category || "General";
+    categoriesMap[title] = (categoriesMap[title] || 0) + 1;
+  });
 
   const filterOptions = [
-    { label: "All (14)", value: "All (14)" },
-    { label: "Biology (6)", value: "Biology" },
-    { label: "Chemistry (5)", value: "Chemistry" },
-    { label: "History (3)", value: "History" },
+    { label: `All (${mistakes.length})`, value: "All" },
+    ...Object.keys(categoriesMap).map((catName) => ({
+      label: `${catName} (${categoriesMap[catName]})`,
+      value: catName,
+    })),
   ];
 
-  const visibleMistakes = mistakesList.filter((m) => {
-    if (activeFilter === "All (14)") return true;
-    return m.subject === activeFilter;
+  const visibleMistakes = mistakes.filter((m) => {
+    if (activeFilter === "All") return true;
+    const filterLower = activeFilter.toLowerCase();
+    return (
+      (m.quizTitle && m.quizTitle.toLowerCase().includes(filterLower)) ||
+      (m.category && m.category.toLowerCase().includes(filterLower))
+    );
   });
+
+  const totalNeedsReview = mistakes.length;
 
   return (
     <SafeAreaView edges={["left", "right"]} style={styles.container}>
@@ -144,7 +147,7 @@ export default function MistakeBank() {
                 <Text style={styles.spacedRepetitionText}>Spaced Repetition</Text>
               </View>
 
-              <Text style={styles.heroTitle}>14 Questions to Master</Text>
+              <Text style={styles.heroTitle}>{totalNeedsReview} Questions to Master</Text>
               <Text style={styles.heroSubtitle}>
                 Turn recent stumbles into permanent recall points
               </Text>
@@ -171,16 +174,22 @@ export default function MistakeBank() {
 
             <Text style={styles.adaptiveTitle}>Smart Review Session</Text>
             <Text style={styles.adaptiveDesc}>
-              Practice your 14 mistakes in spaced repetition to turn weak spots into masteries.
+              {activeFilter === "All"
+                ? `Practice all ${totalNeedsReview} mistakes in shuffled spaced repetition.`
+                : `Practice ${visibleMistakes.length} mistakes in "${activeFilter}".`}
             </Text>
 
             <TouchableOpacity
               style={styles.practiceAllButton}
-              onPress={handlePracticeAll}
+              onPress={() => handlePracticeTopicOrAll()}
               activeOpacity={0.88}
             >
               <Ionicons name="play" size={13} color="#4338CA" style={{ marginRight: 6 }} />
-              <Text style={styles.practiceAllButtonText}>Practice All Missed (14)</Text>
+              <Text style={styles.practiceAllButtonText}>
+                {activeFilter === "All"
+                  ? `Practice All Missed (${totalNeedsReview})`
+                  : `Practice ${activeFilter} (${visibleMistakes.length})`}
+              </Text>
             </TouchableOpacity>
           </LinearGradient>
 
@@ -188,7 +197,7 @@ export default function MistakeBank() {
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <View style={styles.statTopRow}>
-                <Text style={[styles.statValue, { color: "#DC2626" }]}>! 14</Text>
+                <Text style={[styles.statValue, { color: "#DC2626" }]}>! {totalNeedsReview}</Text>
               </View>
               <Text style={styles.statLabel}>Needs Review</Text>
             </View>
@@ -196,85 +205,109 @@ export default function MistakeBank() {
             <View style={styles.statCard}>
               <View style={styles.statTopRow}>
                 <Ionicons name="checkmark-circle" size={16} color="#10B981" style={{ marginRight: 4 }} />
-                <Text style={[styles.statValue, { color: "#10B981" }]}>32</Text>
+                <Text style={[styles.statValue, { color: "#10B981" }]}>Active</Text>
               </View>
-              <Text style={styles.statLabel}>Cleared</Text>
+              <Text style={styles.statLabel}>Mistake Bank</Text>
             </View>
 
             <View style={styles.statCard}>
               <View style={styles.statTopRow}>
                 <Ionicons name="trending-up" size={16} color="#059669" style={{ marginRight: 4 }} />
-                <Text style={[styles.statValue, { color: "#059669" }]}>68%</Text>
+                <Text style={[styles.statValue, { color: "#059669" }]}>Dynamic</Text>
               </View>
-              <Text style={styles.statLabel}>Retention</Text>
+              <Text style={styles.statLabel}>Auto-Synced</Text>
             </View>
           </View>
 
           {/* Filter Chips Row */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterScroll}
-          >
-            {filterOptions.map((opt) => {
-              const isActive = activeFilter === opt.value;
-              return (
-                <TouchableOpacity
-                  key={opt.label}
-                  style={[
-                    styles.filterChip,
-                    isActive ? styles.filterChipActive : styles.filterChipInactive,
-                  ]}
-                  onPress={() => setActiveFilter(opt.value)}
-                  activeOpacity={0.7}
-                >
-                  <Text
+          {filterOptions.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterScroll}
+            >
+              {filterOptions.map((opt) => {
+                const isActive = activeFilter === opt.value;
+                return (
+                  <TouchableOpacity
+                    key={opt.value}
                     style={[
-                      styles.filterChipText,
-                      isActive ? styles.filterChipTextActive : styles.filterChipTextInactive,
+                      styles.filterChip,
+                      isActive ? styles.filterChipActive : styles.filterChipInactive,
                     ]}
+                    onPress={() => setActiveFilter(opt.value)}
+                    activeOpacity={0.7}
                   >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        isActive ? styles.filterChipTextActive : styles.filterChipTextInactive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          {/* Empty State */}
+          {visibleMistakes.length === 0 && (
+            <View style={{ padding: 28, alignItems: "center", backgroundColor: "#FFFFFF", borderRadius: 16, marginTop: 14 }}>
+              <Ionicons name="checkmark-done-circle-outline" size={48} color="#10B981" style={{ marginBottom: 8 }} />
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#0F172A" }}>No Missed Questions!</Text>
+              <Text style={{ fontSize: 12.5, color: "#64748B", textAlign: "center", marginTop: 4 }}>
+                Great job! You have no recorded mistakes under this topic.
+              </Text>
+            </View>
+          )}
 
           {/* Mistake Cards */}
           {visibleMistakes.map((item) => {
             const isExpanded = !!expandedIds[item.id];
+            const q = item.question;
+
+            // Get user's option text
+            const userAnsText = typeof item.userAnswer === "number" && q.options[item.userAnswer]
+              ? q.options[item.userAnswer]
+              : item.userAnswer !== undefined && item.userAnswer !== -1
+              ? String(item.userAnswer)
+              : "No answer selected";
+
+            // Get correct option text
+            const correctIdx = typeof q.correctAnswer === "number"
+              ? q.correctAnswer
+              : typeof item.correctAnswer === "number"
+              ? item.correctAnswer
+              : parseInt(String(q.correctAnswer), 10) || 0;
+            const correctAnsText = q.options[correctIdx] || String(q.correctAnswer || "Option A");
+
             return (
               <View key={item.id} style={styles.mistakeCard}>
-                {/* Card Top Category & Failed count */}
+                {/* Card Top Category & Quiz Title */}
                 <View style={styles.mistakeTopRow}>
                   <View style={styles.categoryPill}>
                     <Ionicons name="flask-outline" size={12} color="#4338CA" style={{ marginRight: 4 }} />
-                    <Text style={styles.categoryPillText}>{item.category}</Text>
+                    <Text style={styles.categoryPillText}>{item.quizTitle || item.category || "General"}</Text>
                   </View>
-                  <Text style={styles.failedCountText}>Failed {item.failedCount}x</Text>
-                </View>
-
-                {/* Missed Time Tag */}
-                <View style={styles.timeTag}>
-                  <Text style={styles.timeTagText}>{item.missedTime}</Text>
                 </View>
 
                 {/* Question Prompt */}
-                <Text style={styles.promptText}>{item.prompt}</Text>
+                <Text style={styles.promptText}>{q.prompt}</Text>
 
                 {/* Your Answer Box */}
                 <View style={styles.wrongAnswerBox}>
                   <Ionicons name="close-circle-outline" size={15} color="#DC2626" style={{ marginRight: 6 }} />
                   <Text style={styles.wrongAnswerLabel}>Your Answer: </Text>
-                  <Text style={styles.wrongAnswerValue}>{item.yourAnswer} ✕</Text>
+                  <Text style={styles.wrongAnswerValue}>{userAnsText} ✕</Text>
                 </View>
 
                 {/* Correct Answer Box */}
                 <View style={styles.correctAnswerBox}>
                   <Ionicons name="checkmark-circle-outline" size={15} color="#15803D" style={{ marginRight: 6 }} />
                   <Text style={styles.correctAnswerLabel}>Correct: </Text>
-                  <Text style={styles.correctAnswerValue}>{item.correctAnswer} ✓</Text>
+                  <Text style={styles.correctAnswerValue}>{correctAnsText} ✓</Text>
                 </View>
 
                 {/* AI Micro-Explanation Accordion */}
@@ -285,7 +318,7 @@ export default function MistakeBank() {
                 >
                   <View style={styles.microAccordionHeaderLeft}>
                     <Ionicons name="bulb-outline" size={14} color="#D97706" style={{ marginRight: 6 }} />
-                    <Text style={styles.microAccordionTitle}>AI Micro-Explanation</Text>
+                    <Text style={styles.microAccordionTitle}>Explanation & Concept</Text>
                   </View>
                   <Ionicons
                     name={isExpanded ? "chevron-up" : "chevron-down"}
@@ -296,7 +329,9 @@ export default function MistakeBank() {
 
                 {isExpanded && (
                   <View style={styles.microExplanationBody}>
-                    <Text style={styles.microExplanationText}>{item.explanation}</Text>
+                    <Text style={styles.microExplanationText}>
+                      {q.explanation || "Review this topic concept for improved accuracy."}
+                    </Text>
                   </View>
                 )}
 
@@ -304,30 +339,28 @@ export default function MistakeBank() {
                 <View style={styles.cardActionsRow}>
                   <TouchableOpacity
                     style={styles.practiceNowButton}
-                    onPress={handlePracticeSingle}
+                    onPress={() => handlePracticeTopicOrAll(item.quizTitle || item.category)}
                     activeOpacity={0.8}
                   >
                     <Ionicons name="refresh-outline" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-                    <Text style={styles.practiceNowText}>Practice Now</Text>
+                    <Text style={styles.practiceNowText}>Practice Topic</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     style={[
                       styles.masteredButton,
-                      item.isMastered && styles.masteredButtonActive,
+                      item.mastered && styles.masteredButtonActive,
                     ]}
                     onPress={() => handleMarkMastered(item.id)}
                     activeOpacity={0.8}
                   >
                     <Ionicons
-                      name={item.isMastered ? "checkmark-circle" : "checkmark"}
+                      name="checkmark-circle-outline"
                       size={14}
                       color="#059669"
-                      style={{ marginRight: 6 }}
+                      style={{ marginRight: 4 }}
                     />
-                    <Text style={styles.masteredText}>
-                      {item.isMastered ? "Mastered" : "Mark as Mastered"}
-                    </Text>
+                    <Text style={styles.masteredText}>Mark as Mastered</Text>
                   </TouchableOpacity>
                 </View>
               </View>

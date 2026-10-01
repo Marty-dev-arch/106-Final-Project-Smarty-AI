@@ -36,7 +36,8 @@ interface QuizContextType {
     sourceDocName?: string;
     sourceDocUrl?: string;
   }) => Promise<Quiz>;
-  startMistakePractice: () => Quiz | null;
+  startMistakePractice: (topicFilter?: string) => Quiz | null;
+  clearMistake: (id: string) => Promise<void>;
   refreshData: () => Promise<void>;
   deleteAllQuizzesAndFiles: () => Promise<void>;
 }
@@ -142,8 +143,8 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setLatestAttempt(attempt);
 
-    // Save and update user progress
-    await quizService.recordQuizAttempt(attempt);
+    // Save and update user progress (passing activeQuiz for real question preservation)
+    await quizService.recordQuizAttempt(attempt, activeQuiz);
     await refreshUser();
     await refreshData();
 
@@ -189,19 +190,40 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const startMistakePractice = (): Quiz | null => {
+  const startMistakePractice = (topicFilter?: string): Quiz | null => {
     if (mistakes.length === 0) return null;
 
-    const practiceQuestions: Question[] = mistakes.map((m, idx) => ({
+    let filtered = mistakes.filter((m) => !m.mastered);
+    if (topicFilter && topicFilter !== 'All' && !topicFilter.startsWith('All (')) {
+      const filterLower = topicFilter.toLowerCase().trim();
+      filtered = filtered.filter((m) => {
+        const titleMatch = m.quizTitle?.toLowerCase().includes(filterLower);
+        const catMatch = m.category?.toLowerCase().includes(filterLower);
+        const qCatMatch = m.question?.category?.toLowerCase().includes(filterLower);
+        return titleMatch || catMatch || qCatMatch;
+      });
+    }
+
+    if (filtered.length === 0) filtered = mistakes;
+
+    // Shuffle questions when practicing overall wrong answers or topic
+    const shuffled = [...filtered].sort(() => Math.random() - 0.5);
+
+    const practiceQuestions: Question[] = shuffled.map((m, idx) => ({
       ...m.question,
-      id: `prac_${idx}_${m.question.id}`,
+      id: `prac_${idx}_${m.question.id || Date.now()}`,
     }));
+
+    const titleText =
+      topicFilter && topicFilter !== 'All' && !topicFilter.startsWith('All (')
+        ? `Mistake Review: ${topicFilter}`
+        : 'Mistake Bank: Overall Review';
 
     const practiceQuiz: Quiz = {
       id: 'quiz_practice_' + Date.now(),
-      title: 'Mistake Bank: Focused Practice',
+      title: titleText,
       description: 'Reviewing previously missed questions for retention and mastery.',
-      category: 'Diagnostic Review',
+      category: topicFilter || 'Mistake Review',
       difficulty: 'medium',
       questionTypes: ['multiple_choice'],
       questionsCount: practiceQuestions.length,
@@ -283,6 +305,11 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const clearMistake = async (id: string) => {
+    setMistakes((prev) => prev.filter((m) => m.id !== id));
+    await quizService.clearMistake(id);
+  };
+
   return (
     <QuizContext.Provider
       value={{
@@ -306,6 +333,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteQuestionFromQuiz,
         generateQuizWithAI,
         startMistakePractice,
+        clearMistake,
         refreshData,
         deleteAllQuizzesAndFiles,
       }}

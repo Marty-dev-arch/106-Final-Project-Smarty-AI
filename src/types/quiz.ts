@@ -50,6 +50,8 @@ export interface QuizAttempt {
 export interface MistakeItem {
   id: string;
   quizId: string;
+  quizTitle?: string;
+  category?: string;
   question: Question;
   userAnswer: string | number;
   correctAnswer: string | number;

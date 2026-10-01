@@ -133,7 +133,8 @@ export const quizService = {
   },
 
   async recordQuizAttempt(
-    attempt: QuizAttempt
+    attempt: QuizAttempt,
+    passedQuiz?: Quiz
   ): Promise<{ updatedStreak: number; newAvgScore: number }> {
     // 1. Save attempt locally and to Firestore
     await storageService.saveAttempt(attempt);
@@ -146,9 +147,12 @@ export const quizService = {
     }
 
     // Update target quiz bestScore and timesTaken
+    let targetQuiz = passedQuiz;
     try {
       const allQuizzes = await this.getQuizzes();
-      const targetQuiz = allQuizzes.find((q) => q.id === attempt.quizId);
+      if (!targetQuiz) {
+        targetQuiz = allQuizzes.find((q) => q.id === attempt.quizId);
+      }
       if (targetQuiz) {
         const updatedQuiz: Quiz = {
           ...targetQuiz,
@@ -161,25 +165,32 @@ export const quizService = {
       console.warn('[quizService] Could not update quiz bestScore:', err);
     }
 
-    // 2. Identify mistakes and add to MistakeBank
+    // 2. Identify mistakes and add to MistakeBank with REAL question details
     const mistakes: MistakeItem[] = attempt.answers
       .filter((a) => !a.isCorrect)
-      .map((a) => ({
-        id: 'mis_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-        quizId: attempt.quizId,
-        question: {
-          id: a.questionId,
-          type: 'multiple_choice' as const,
-          prompt: `Question regarding ${attempt.quizTitle}`,
-          options: ['Option A', 'Option B', 'Option C', 'Option D'],
-          correctAnswer: 0,
-          explanation: a.explanation,
-        },
-        userAnswer: a.userAnswer,
-        correctAnswer: 0,
-        dateAdded: 'Today',
-        mastered: false,
-      }));
+      .map((a) => {
+        const targetQ = targetQuiz?.questions?.find((q) => q.id === a.questionId);
+        return {
+          id: 'mis_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          quizId: attempt.quizId,
+          quizTitle: targetQuiz?.title || attempt.quizTitle,
+          category: targetQuiz?.category || 'General',
+          question: targetQ
+            ? { ...targetQ }
+            : {
+                id: a.questionId,
+                type: 'multiple_choice' as const,
+                prompt: `Question regarding ${attempt.quizTitle}`,
+                options: ['Option A', 'Option B', 'Option C', 'Option D'],
+                correctAnswer: 0,
+                explanation: a.explanation,
+              },
+          userAnswer: a.userAnswer,
+          correctAnswer: targetQ ? targetQ.correctAnswer : 0,
+          dateAdded: 'Today',
+          mastered: false,
+        };
+      });
 
     if (mistakes.length > 0) {
       await storageService.addMistakes(mistakes);
