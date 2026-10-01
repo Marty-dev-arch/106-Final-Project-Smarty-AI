@@ -61,35 +61,29 @@ export const quizService = {
    * Tries Firestore first (with fast 3s fallback), merges with AsyncStorage.
    */
   async getQuizzes(): Promise<Quiz[]> {
-    const localQuizzes = await storageService.getQuizzes();
-    if (isFirebaseInitialized && db) {
+    const effUid = getEffectiveUid(this.currentUid);
+    if (isFirebaseInitialized && db && effUid) {
       try {
-        const col = userQuizzesPath(this.currentUid);
-        if (col) {
-          // Fetch raw collection from Firestore (avoid requiring composite indexes)
-          const snap: any = await withTimeout(getDocs(col), 5000);
-          if (snap && !snap.empty) {
-            const remoteMap = new Map<string, Quiz>();
-            snap.forEach((d: any) => remoteMap.set(d.id, { id: d.id, ...d.data() } as Quiz));
+        const col = collection(db, 'users', effUid, 'quizzes');
+        const snap: any = await withTimeout(getDocs(col), 5000);
+        if (snap) {
+          const remoteQuizzes: Quiz[] = [];
+          snap.forEach((d: any) => remoteQuizzes.push({ id: d.id, ...d.data() } as Quiz));
 
-            // Merge local-only quizzes so offline creates are preserved
-            for (const lq of localQuizzes) {
-              if (!remoteMap.has(lq.id)) {
-                remoteMap.set(lq.id, lq);
-              }
-            }
+          const sorted = remoteQuizzes.sort(
+            (a, b) =>
+              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          );
 
-            return Array.from(remoteMap.values()).sort(
-              (a, b) =>
-                new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-            );
-          }
+          // Cache remote user's exact quizzes locally
+          await storageService.saveQuizzes(sorted);
+          return sorted;
         }
       } catch (err) {
         console.warn('[quizService] Firestore getQuizzes notice:', err);
       }
     }
-    return localQuizzes;
+    return await storageService.getQuizzes();
   },
 
   /**

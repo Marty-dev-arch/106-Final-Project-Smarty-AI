@@ -60,6 +60,10 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Keep quizService UID in sync with auth and re-fetch user's quizzes from Firestore when logged in
   useEffect(() => {
     quizService.currentUid = user?.uid;
+    setQuizzes([]);
+    setMistakes([]);
+    setMedals([]);
+    setActiveQuiz(null);
     refreshData();
   }, [user?.uid]);
 

@@ -368,7 +368,7 @@ export const authService = {
         console.warn('Sign out error:', e);
       }
     }
-    await storageService.clearUser();
+    await storageService.clearAll();
   },
 
   /**
