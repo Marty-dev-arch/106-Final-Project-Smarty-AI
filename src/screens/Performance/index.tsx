@@ -196,46 +196,67 @@ export default function Performance() {
             </Text>
           </View>
         ) : (
-          quizzes.map((q) => {
-            const scorePercent = q.bestScore ?? 0;
-            const categoryName = q.category || q.title;
-            
-            let statusText = "Need Review";
-            let statusColor = "#EF4444";
-            let trackFillColor = "#EF4444";
+          (() => {
+            // Aggregate quizzes by category / subject and compute best accuracy from quiz attempts
+            const subjectMap = new Map<string, { id: string; categoryName: string; scorePercent: number }>();
+            quizzes.forEach((q) => {
+              const catName = (q.category && q.category !== "General Knowledge") ? q.category : q.title;
+              const existing = subjectMap.get(catName);
+              // Use quiz bestScore if available, else fall back to user's overall score if taken
+              const score = q.bestScore ?? (q.timesTaken && q.timesTaken > 0 ? avgScore : 0);
+              if (!existing) {
+                subjectMap.set(catName, { id: q.id, categoryName: catName, scorePercent: score });
+              } else {
+                subjectMap.set(catName, {
+                  id: existing.id,
+                  categoryName: catName,
+                  scorePercent: Math.max(existing.scorePercent, score),
+                });
+              }
+            });
 
-            if (scorePercent >= 85) {
-              statusText = "Excellent Mastery";
-              statusColor = "#10B981";
-              trackFillColor = "#10B981";
-            } else if (scorePercent >= 70) {
-              statusText = "Good Mastery";
-              statusColor = isDark ? "#818CF8" : "#6D44F2";
-              trackFillColor = isDark ? "#818CF8" : "#6D44F2";
-            } else if (scorePercent >= 50) {
-              statusText = "Consistent Progress";
-              statusColor = "#F59E0B";
-              trackFillColor = "#F59E0B";
-            }
+            const subjects = Array.from(subjectMap.values());
 
-            return (
-              <View key={q.id} style={[styles.subjectCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                <View style={styles.subjectTopRow}>
-                  <View style={[styles.subjectIconBox, { backgroundColor: isDark ? "#312E81" : "#EDE9FE" }]}>
-                    <Ionicons name="book-outline" size={18} color={isDark ? "#818CF8" : THEME.colors.primary} />
+            return subjects.map((sub) => {
+              const { id, categoryName, scorePercent } = sub;
+              
+              let statusText = "Need Review";
+              let statusColor = "#EF4444";
+              let trackFillColor = "#EF4444";
+
+              if (scorePercent >= 85) {
+                statusText = "Excellent Mastery";
+                statusColor = "#10B981";
+                trackFillColor = "#10B981";
+              } else if (scorePercent >= 70) {
+                statusText = "Good Mastery";
+                statusColor = isDark ? "#818CF8" : "#6D44F2";
+                trackFillColor = isDark ? "#818CF8" : "#6D44F2";
+              } else if (scorePercent >= 50) {
+                statusText = "Consistent Progress";
+                statusColor = "#F59E0B";
+                trackFillColor = "#F59E0B";
+              }
+
+              return (
+                <View key={id} style={[styles.subjectCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                  <View style={styles.subjectTopRow}>
+                    <View style={[styles.subjectIconBox, { backgroundColor: isDark ? "#312E81" : "#EDE9FE" }]}>
+                      <Ionicons name="book-outline" size={18} color={isDark ? "#818CF8" : THEME.colors.primary} />
+                    </View>
+                    <View style={styles.subjectInfoCol}>
+                      <Text style={[styles.subjectName, { color: colors.text }]} numberOfLines={1}>{categoryName}</Text>
+                      <Text style={[styles.subjectStatus, { color: statusColor }]}>{statusText}</Text>
+                    </View>
+                    <Text style={[styles.percentText, { color: statusColor }]}>{scorePercent}%</Text>
                   </View>
-                  <View style={styles.subjectInfoCol}>
-                    <Text style={[styles.subjectName, { color: colors.text }]} numberOfLines={1}>{categoryName}</Text>
-                    <Text style={[styles.subjectStatus, { color: statusColor }]}>{statusText}</Text>
+                  <View style={[styles.subjectTrack, { backgroundColor: isDark ? "#334155" : "#EDE9FE" }]}>
+                    <View style={[styles.subjectFill, { width: `${Math.min(100, Math.max(5, scorePercent))}%`, backgroundColor: trackFillColor }]} />
                   </View>
-                  <Text style={[styles.percentText, { color: statusColor }]}>{scorePercent}%</Text>
                 </View>
-                <View style={[styles.subjectTrack, { backgroundColor: isDark ? "#334155" : "#EDE9FE" }]}>
-                  <View style={[styles.subjectFill, { width: `${Math.min(100, Math.max(5, scorePercent))}%`, backgroundColor: trackFillColor }]} />
-                </View>
-              </View>
-            );
-          })
+              );
+            });
+          })()
         )}
 
         {/* AI Study Drill Card */}

@@ -143,6 +143,22 @@ export const quizService = {
       } catch {}
     }
 
+    // Update target quiz bestScore and timesTaken
+    try {
+      const allQuizzes = await this.getQuizzes();
+      const targetQuiz = allQuizzes.find((q) => q.id === attempt.quizId);
+      if (targetQuiz) {
+        const updatedQuiz: Quiz = {
+          ...targetQuiz,
+          timesTaken: (targetQuiz.timesTaken || 0) + 1,
+          bestScore: Math.max(targetQuiz.bestScore || 0, attempt.percentage),
+        };
+        await this.updateQuiz(updatedQuiz);
+      }
+    } catch (err) {
+      console.warn('[quizService] Could not update quiz bestScore:', err);
+    }
+
     // 2. Identify mistakes and add to MistakeBank
     const mistakes: MistakeItem[] = attempt.answers
       .filter((a) => !a.isCorrect)
@@ -172,13 +188,14 @@ export const quizService = {
     let updatedStreak = 1;
     let newAvgScore = attempt.percentage;
     let newQuizzesTaken = 1;
+    let newTotalXP = 100 + attempt.earnedXP;
 
     if (user) {
       newQuizzesTaken = user.quizzesTaken + 1;
       newAvgScore = Math.round(
         (user.avgScore * user.quizzesTaken + attempt.percentage) / newQuizzesTaken
       );
-      const newTotalXP = user.totalXP + attempt.earnedXP;
+      newTotalXP = user.totalXP + attempt.earnedXP;
       
       const streakResult = recordDailyActivityStreak(
         user.streak,
@@ -214,16 +231,38 @@ export const quizService = {
       }
     }
 
-    // 4. Check & update medals (Achievements)
+    // 4. Check & update medals (Achievements) dynamically based on XP, Quizzes, Streak, and Score
     const medals = await storageService.getMedals();
     const updatedMedals = medals.map((m) => {
-      if (m.id === 'm1' && newAvgScore >= 85 && newQuizzesTaken >= 20)
-        return { ...m, unlocked: true, progress: Math.min(newQuizzesTaken, 20) };
-      if (m.id === 'm3')
-        return { ...m, progress: Math.min(m.progress + 1, m.totalRequired), unlocked: m.progress + 1 >= m.totalRequired };
-      if (m.id === 'm4')
-        return { ...m, progress: Math.min(updatedStreak, m.totalRequired), unlocked: updatedStreak >= m.totalRequired };
-      return m;
+      let progress = m.progress || 0;
+      let unlocked = m.unlocked || false;
+
+      if (m.id === 'm1' || m.title.includes('Gold Scholar')) {
+        progress = Math.min(newQuizzesTaken, m.totalRequired || 5);
+        unlocked = newQuizzesTaken >= (m.totalRequired || 5) && newAvgScore >= 85;
+      } else if (m.id === 'm2' || m.id === 'pacesetter' || m.title.includes('Pacesetter') || m.title.includes('Speed')) {
+        const req = m.totalRequired || 500;
+        progress = Math.min(newTotalXP, req);
+        unlocked = newTotalXP >= req;
+      } else if (m.id === 'm3' || m.id === 'master_mind' || m.title.includes('Curious') || m.title.includes('Mind')) {
+        const req = m.totalRequired || 5;
+        progress = Math.min(newQuizzesTaken, req);
+        unlocked = newQuizzesTaken >= req;
+      } else if (m.id === 'm4' || m.id === 'iron_will' || m.title.includes('Iron Will') || m.title.includes('Consistency')) {
+        const req = m.totalRequired || 3;
+        progress = Math.min(updatedStreak, req);
+        unlocked = updatedStreak >= req;
+      } else if (m.id === 'm5' || m.id === 'grand_medal' || m.title.includes('Grand')) {
+        const req = m.totalRequired || 1000;
+        progress = Math.min(newTotalXP, req);
+        unlocked = newTotalXP >= req;
+      }
+
+      return {
+        ...m,
+        progress,
+        unlocked,
+      };
     });
     await storageService.saveMedals(updatedMedals);
 

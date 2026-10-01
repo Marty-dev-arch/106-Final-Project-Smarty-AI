@@ -105,6 +105,63 @@ export default function Achievements() {
   const [activeTab, setActiveTab] = useState<"Badges" | "Medals" | "Ribbons">("Medals");
   const [refreshing, setRefreshing] = useState(false);
 
+  const userXP = user?.totalXP ?? 0;
+  const userQuizzes = user?.quizzesTaken ?? 0;
+  const userStreak = user?.streak ?? 0;
+  const userAvgScore = user?.avgScore ?? 0;
+
+  // Dynamically compute real medals based on user stats in Firebase
+  const displayMedals: MedalItem[] = [
+    {
+      id: "gold_scholar",
+      title: "Gold Scholar",
+      category: "Excellence",
+      iconName: "ribbon",
+      isUnlocked: userQuizzes >= 5 && userAvgScore >= 85,
+      tier: "GOLD TIER • LEVEL 5",
+      description: "Maintain an average score above 85% across 5+ completed quizzes.",
+    },
+    {
+      id: "pacesetter",
+      title: "Pacesetter",
+      category: "XP Mastery",
+      iconName: "flash",
+      isUnlocked: userXP >= 500,
+      tier: "GOLD TIER • LEVEL 3",
+      description: "Earn 500 Total XP across quizzes and daily study activities in Firebase.",
+    },
+    {
+      id: "master_mind",
+      title: "Master Mind",
+      category: "Knowledge",
+      iconName: "bulb",
+      isUnlocked: userQuizzes >= 5,
+      tier: "GOLD TIER • LEVEL 4",
+      description: "Complete 5 study quizzes generated from study materials.",
+    },
+    {
+      id: "iron_will",
+      title: "Iron Will",
+      category: "Endurance",
+      iconName: "shield",
+      isUnlocked: userStreak >= 3,
+      tier: "GOLD TIER • LEVEL 4",
+      description: "Maintain a daily study streak for 3 consecutive days.",
+    },
+    {
+      id: "grand_medal",
+      title: "Grand Medal",
+      category: "Mastery",
+      iconName: "trophy",
+      isUnlocked: userXP >= 1000,
+      tier: "GOLD TIER • LEVEL 5",
+      description: "Accumulate 1,000 Total XP in your linked Firebase account.",
+    },
+  ];
+
+  const unlockedCount = displayMedals.filter((m) => m.isUnlocked).length;
+  const unlockedPercent = Math.round((unlockedCount / displayMedals.length) * 100);
+
   const streakInfo = evaluateStreak(user?.streak, user?.lastActiveDate, user?.longestStreak);
 
   const onRefresh = useCallback(async () => {
@@ -131,7 +188,7 @@ export default function Achievements() {
         category: medal.category || "General",
         unlocked: medal.isUnlocked,
         iconUri: "",
-        progress: 10,
+        progress: medal.isUnlocked ? 10 : 0,
         totalRequired: 10,
       },
     });
@@ -171,14 +228,14 @@ export default function Achievements() {
 
             <View style={styles.heroTextCol}>
               <View style={styles.heroTagRow}>
-                <Text style={styles.grandExplorerText}>GRAND EXPLORER</Text>
+                <Text style={styles.grandExplorerText}>{user?.tier?.toUpperCase() || 'SCHOLAR'}</Text>
                 <View style={styles.levelBadge}>
-                  <Text style={styles.levelText}>LVI 4</Text>
+                  <Text style={styles.levelText}>XP {userXP}</Text>
                 </View>
                 <Text style={styles.trophyBlueLabel}>Trophy</Text>
               </View>
               <Text style={[styles.heroTitle, { color: colors.text }]}>Master Collector</Text>
-              <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>5 of 5 Medals unlocked</Text>
+              <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>{unlockedCount} of 5 Medals unlocked</Text>
             </View>
           </View>
 
@@ -247,18 +304,18 @@ export default function Achievements() {
             <View style={styles.progressHeaderRow}>
               <Text style={[styles.progressCardTitle, { color: colors.text }]}>Medal Collection Progress</Text>
               <View style={styles.progressValueGroup}>
-                <Text style={styles.unlockedFractionText}>5/5 Unlocked</Text>
-                <Text style={[styles.progressPercentText, { color: colors.text }]}>100%</Text>
+                <Text style={styles.unlockedFractionText}>{unlockedCount}/5 Unlocked</Text>
+                <Text style={[styles.progressPercentText, { color: colors.text }]}>{unlockedPercent}%</Text>
               </View>
             </View>
             <View style={[styles.progressBarTrack, { backgroundColor: isDark ? "#334155" : "#F3F4F6" }]}>
-              <View style={[styles.progressBarFill, { width: "100%" }]} />
+              <View style={[styles.progressBarFill, { width: `${unlockedPercent}%` }]} />
             </View>
           </View>
 
-          {/* Section: Unlocked (5 of 5) */}
+          {/* Section: Unlocked */}
           <View style={styles.unlockedHeaderRow}>
-            <Text style={[styles.unlockedSectionTitle, { color: colors.text }]}>Unlocked (5 of 5)</Text>
+            <Text style={[styles.unlockedSectionTitle, { color: colors.text }]}>Medals ({unlockedCount} of 5 Unlocked)</Text>
             <TouchableOpacity style={styles.filterBtn} activeOpacity={0.7}>
               <Text style={styles.filterText}>Filter</Text>
               <Ionicons name="options-outline" size={14} color="#4338CA" style={{ marginLeft: 4 }} />
@@ -267,17 +324,21 @@ export default function Achievements() {
 
           {/* 3-Column Medals Grid */}
           <View style={styles.medalsGrid}>
-            {MEDALS_DATA.map((medal) => (
+            {displayMedals.map((medal) => (
               <TouchableOpacity
                 key={medal.id}
-                style={styles.medalGridItem}
+                style={[styles.medalGridItem, !medal.isUnlocked && { opacity: 0.65 }]}
                 onPress={() => handleOpenMedal(medal)}
                 activeOpacity={0.82}
               >
-                {/* Golden Gradient Medal Circle */}
+                {/* Gradient Medal Circle */}
                 <View style={styles.medalCircleWrapper}>
                   <LinearGradient
-                    colors={["#E5A93C", "#C2831B", "#8C5810"]}
+                    colors={
+                      medal.isUnlocked
+                        ? ["#E5A93C", "#C2831B", "#8C5810"]
+                        : ["#94A3B8", "#64748B", "#475569"]
+                    }
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.goldMedalCircle}
@@ -285,9 +346,9 @@ export default function Achievements() {
                     <Ionicons name={medal.iconName} size={30} color="#FFFFFF" />
                   </LinearGradient>
 
-                  {/* Checkmark Badge */}
-                  <View style={styles.checkBadge}>
-                    <Ionicons name="checkmark" size={9} color="#FFFFFF" />
+                  {/* Badge: Checkmark if Unlocked, Lock if Locked */}
+                  <View style={[styles.checkBadge, !medal.isUnlocked && { backgroundColor: "#64748B" }]}>
+                    <Ionicons name={medal.isUnlocked ? "checkmark" : "lock-closed"} size={9} color="#FFFFFF" />
                   </View>
                 </View>
 
@@ -295,7 +356,9 @@ export default function Achievements() {
                 <Text style={[styles.medalItemTitle, { color: colors.text }]} numberOfLines={1}>
                   {medal.title}
                 </Text>
-                <Text style={styles.medalItemStatus}>Earned</Text>
+                <Text style={[styles.medalItemStatus, !medal.isUnlocked && { color: colors.textMuted }]}>
+                  {medal.isUnlocked ? "Earned" : "Locked"}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -312,7 +375,7 @@ export default function Achievements() {
             <View style={styles.categoryMasteredTextCol}>
               <Text style={[styles.categoryMasteredTitle, { color: colors.text }]}>Category Mastered</Text>
               <Text style={[styles.categoryMasteredSubtitle, { color: colors.textSecondary }]}>
-                Category Mastered — 5 of 5 Unlocked
+                {unlockedCount} of 5 Medals Unlocked
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
