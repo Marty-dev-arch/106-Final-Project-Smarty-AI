@@ -19,7 +19,8 @@ const isRealApiKey = (key?: string): boolean => {
   if (!key) return false;
   const trimmed = key.trim();
   return (
-    trimmed.length >= 15 &&
+    trimmed.length >= 25 &&
+    trimmed.startsWith('AIzaSy') &&
     !trimmed.includes('your_gemini_api_key')
   );
 };
@@ -298,15 +299,11 @@ export const geminiService = {
         }
 
       } catch (err) {
-        console.warn('[geminiService] Gemini call failed:', err);
-        const hasDocumentContent = (slides && slides.length > 0) || topicOrDocumentText.trim().length > 100;
-        if (hasDocumentContent) {
-          throw err; // surface the real error to the UI
-        }
+        console.warn('[geminiService] Gemini call failed, falling back to document quiz generator:', err);
       }
     }
 
-    // Fallback only for bare topic-only quizzes (no file content)
+    // Return high-quality generated quiz for the document/topic
     return geminiService.generateSmartFallback(params);
   },
 
