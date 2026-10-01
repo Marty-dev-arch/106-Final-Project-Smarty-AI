@@ -477,35 +477,36 @@ export default function QuizTaking() {
                       onChangeText={(t) => handleOptionTextChange(t, idx)}
                     />
 
-                    {/* Correct Answer Selector */}
-                    <TouchableOpacity
-                      style={styles.correctCheckBtn}
-                      onPress={() => {
-                        triggerHaptic.selection();
-                        setEditCorrectIndex(idx);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      {isCorrect ? (
-                        <View style={styles.correctBadgePill}>
-                          <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                          <Text style={styles.correctBadgeText}>Correct</Text>
-                        </View>
-                      ) : (
-                        <View style={styles.uncheckCircle} />
-                      )}
-                    </TouchableOpacity>
-
-                    {/* Remove Option Button */}
-                    {editOptions.length > 2 && (
+                    {/* Right Controls: Correct Selector + Delete Button */}
+                    <View style={styles.optionRightGroup}>
                       <TouchableOpacity
-                        onPress={() => handleRemoveOptionField(idx)}
-                        style={styles.removeOptBtn}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={styles.correctCheckBtn}
+                        onPress={() => {
+                          triggerHaptic.selection();
+                          setEditCorrectIndex(idx);
+                        }}
+                        activeOpacity={0.7}
                       >
-                        <Ionicons name="close" size={16} color="#94A3B8" />
+                        {isCorrect ? (
+                          <View style={styles.correctBadgePill}>
+                            <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                            <Text style={styles.correctBadgeText}>Correct</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.uncheckCircle} />
+                        )}
                       </TouchableOpacity>
-                    )}
+
+                      {editOptions.length > 2 && (
+                        <TouchableOpacity
+                          onPress={() => handleRemoveOptionField(idx)}
+                          style={styles.removeOptBtn}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="close" size={16} color="#94A3B8" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 );
               })}
@@ -1356,22 +1357,30 @@ const styles = StyleSheet.create({
   },
   editOptionTextInput: {
     flex: 1,
+    minWidth: 0,
     fontSize: 14,
     fontWeight: "500",
     color: "#0F172A",
     paddingVertical: 6,
+    marginRight: 4,
+  },
+  optionRightGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginLeft: "auto",
   },
   correctCheckBtn: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 2,
   },
   correctBadgePill: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#DCFCE7",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3.5,
+    borderRadius: 8,
+    gap: 3,
   },
   correctBadgeText: {
     fontSize: 11,
@@ -1386,8 +1395,7 @@ const styles = StyleSheet.create({
     borderColor: "#CBD5E1",
   },
   removeOptBtn: {
-    padding: 4,
-    marginLeft: 2,
+    padding: 3,
   },
   addOptionBtn: {
     flexDirection: "row",
