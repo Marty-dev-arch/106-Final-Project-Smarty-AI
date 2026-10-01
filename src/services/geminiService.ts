@@ -95,6 +95,12 @@ function buildQuizPrompt(
 ): string {
   const contentExcerpt = content.slice(0, 6000);
 
+  const difficultyInstructions = {
+    easy: 'EASY MODE: Focus on direct facts, key terms, definitions, and basic recall from the text. Distractors (wrong choices) should be simple and easy to eliminate.',
+    medium: 'MEDIUM MODE: Focus on conceptual understanding, cause-and-effect, and standard application of rules/formulas. Distractors should represent plausible common missteps.',
+    hard: 'HARD MODE: Focus on multi-step problem solving, critical analysis, edge cases, and synthesis of multiple concepts. Distractors must be subtle, highly plausible, and test deep mastery.',
+  }[difficulty.toLowerCase() as 'easy' | 'medium' | 'hard'] || 'Focus on balanced conceptual understanding.';
+
   return `You are a high-level academic professor and quiz creator. Generate EXACTLY ${count} comprehensive, accurate, and engaging quiz questions based strictly on the provided material.
 
 MATERIAL / TOPIC:
@@ -105,12 +111,13 @@ ${contentExcerpt}
 QUIZ CONFIGURATION:
 - Title: ${quizTitle}
 - Number of Questions: ${count}
-- Difficulty: ${difficulty}
+- Target Difficulty: ${difficulty.toUpperCase()}
+- Difficulty Baseline: ${difficultyInstructions}
 - Allowed Question Types: ${questionTypes.join(', ')}
 
 REQUIREMENTS:
-1. Every question prompt must be a complete, well-formed question.
-2. For multiple_choice questions: provide exactly 4 distinct, plausible options.
+1. Every question prompt must be a complete, well-formed question matching the requested Target Difficulty.
+2. For multiple_choice questions: provide exactly 4 distinct options.
 3. For true_false questions: options MUST be ["True", "False"].
 4. correctAnswer must be the 0-based index of the correct option (0, 1, 2, or 3).
 5. Provide a clear 1-2 sentence explanation explaining why the correct answer is right.
