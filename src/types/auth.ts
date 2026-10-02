@@ -12,6 +12,10 @@ export interface UserProfile {
   avgScore: number;
   totalXP: number;
   tier: string;
+  defaultDifficulty?: 'Easy' | 'Medium' | 'Hard';
+  mistakeSync?: boolean;
+  streakReminder?: boolean;
+  hapticFeedback?: boolean;
   createdAt: string;
 }
 

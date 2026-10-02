@@ -82,18 +82,53 @@ const LANGUAGE_STORAGE_KEY = "@smarty_ai_app_language";
 
 export default function ProfileSetiing() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { user, signOut, updateAccountDetails } = useAuth();
+  const { user, signOut, updateAccountDetails, updateUser } = useAuth();
   const { colors, isDark, themeMode, setThemeMode } = useTheme();
   const { deleteAllQuizzesAndFiles, quizzes } = useQuiz();
   const profileQuizzesTaken = (user?.quizzesTaken ?? 0) === 0 || quizzes.length === 0 ? 0 : user?.quizzesTaken ?? 0;
   const profileAvgScore = profileQuizzesTaken === 0 ? 0 : user?.avgScore ?? 0;
 
-  // Study Settings state
-  const [difficulty, setDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
-  const [mistakeSync, setMistakeSync] = useState(true);
-  const [streakReminder, setStreakReminder] = useState(true);
-  const [hapticFeedback, setHapticFeedback] = useState(true);
+  // Study Settings state (initialized from user profile in Firestore)
+  const [difficulty, setDifficulty] = useState<"Easy" | "Medium" | "Hard">(user?.defaultDifficulty || "Medium");
+  const [mistakeSync, setMistakeSync] = useState(user?.mistakeSync ?? true);
+  const [streakReminder, setStreakReminder] = useState(user?.streakReminder ?? true);
+  const [hapticFeedback, setHapticFeedback] = useState(user?.hapticFeedback ?? true);
   const [profileImage, setProfileImage] = useState<string | null>(user?.photoURL || null);
+
+  useEffect(() => {
+    if (user) {
+      if (user.defaultDifficulty) setDifficulty(user.defaultDifficulty);
+      if (user.mistakeSync !== undefined) setMistakeSync(user.mistakeSync);
+      if (user.streakReminder !== undefined) setStreakReminder(user.streakReminder);
+      if (user.hapticFeedback !== undefined) setHapticFeedback(user.hapticFeedback);
+    }
+  }, [user?.defaultDifficulty, user?.mistakeSync, user?.streakReminder, user?.hapticFeedback]);
+
+  const handleSelectDifficulty = async (level: "Easy" | "Medium" | "Hard") => {
+    setDifficulty(level);
+    await updateUser({ defaultDifficulty: level });
+  };
+
+  const handleToggleMistakeSync = async (val: boolean) => {
+    setMistakeSync(val);
+    await updateUser({ mistakeSync: val });
+  };
+
+  const handleToggleStreakReminder = async (val: boolean) => {
+    setStreakReminder(val);
+    await updateUser({ streakReminder: val });
+  };
+
+  const handleToggleHapticFeedback = async (val: boolean) => {
+    setHapticFeedback(val);
+    await updateUser({ hapticFeedback: val });
+  };
+
+  // Real dynamic calculation for Daily Goal Progress
+  const completedQuizzesCount = quizzes.filter((q) => q.bestScore !== undefined && q.bestScore !== null).length;
+  const realQuizzesCompletedToday = (user?.quizzesTaken ?? 0) === 0 || quizzes.length === 0 ? 0 : completedQuizzesCount;
+  const dailyGoalTarget = 2;
+  const dailyGoalPercent = Math.min(100, Math.round((realQuizzesCompletedToday / dailyGoalTarget) * 100));
 
   // Language state
   const [currentLanguage, setCurrentLanguage] = useState<string>("en");
@@ -627,7 +662,7 @@ export default function ProfileSetiing() {
                           ? styles.diffPillActive
                           : [styles.diffPillInactive, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }],
                       ]}
-                      onPress={() => setDifficulty(level)}
+                      onPress={() => handleSelectDifficulty(level)}
                       activeOpacity={0.7}
                     >
                       <Text
@@ -649,14 +684,16 @@ export default function ProfileSetiing() {
               <View style={[styles.targetSection, { borderTopColor: colors.border }]}>
                 <View style={styles.targetHeaderRow}>
                   <Text style={[styles.targetLabel, { color: colors.text }]}>Daily Goal Progress</Text>
-                  <Text style={styles.targetGoalText}>15 mins / 2 quizzes</Text>
+                  <Text style={styles.targetGoalText}>15 mins / {dailyGoalTarget} quizzes</Text>
                 </View>
                 <View style={[styles.targetProgressTrack, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
-                  <View style={[styles.targetProgressFill, { width: "75%" }]} />
+                  <View style={[styles.targetProgressFill, { width: `${dailyGoalPercent}%` }]} />
                 </View>
                 <View style={styles.targetFooterRow}>
-                  <Text style={[styles.targetSubLeft, { color: colors.textMuted }]}>Current: 1 quiz completed</Text>
-                  <Text style={[styles.targetSubRight, { color: colors.text }]}>75% achieved</Text>
+                  <Text style={[styles.targetSubLeft, { color: colors.textMuted }]}>
+                    Current: {realQuizzesCompletedToday} {realQuizzesCompletedToday === 1 ? 'quiz' : 'quizzes'} completed
+                  </Text>
+                  <Text style={[styles.targetSubRight, { color: colors.text }]}>{dailyGoalPercent}% achieved</Text>
                 </View>
               </View>
             </View>
@@ -675,7 +712,7 @@ export default function ProfileSetiing() {
                 </View>
                 <Switch
                   value={mistakeSync}
-                  onValueChange={setMistakeSync}
+                  onValueChange={handleToggleMistakeSync}
                   trackColor={{ false: isDark ? "#334155" : "#E5E7EB", true: "#6D44F2" }}
                   thumbColor="#FFFFFF"
                 />
@@ -775,7 +812,7 @@ export default function ProfileSetiing() {
                 </View>
                 <Switch
                   value={streakReminder}
-                  onValueChange={setStreakReminder}
+                  onValueChange={handleToggleStreakReminder}
                   trackColor={{ false: isDark ? "#334155" : "#E5E7EB", true: "#6D44F2" }}
                   thumbColor="#FFFFFF"
                 />
@@ -794,7 +831,7 @@ export default function ProfileSetiing() {
                 </View>
                 <Switch
                   value={hapticFeedback}
-                  onValueChange={setHapticFeedback}
+                  onValueChange={handleToggleHapticFeedback}
                   trackColor={{ false: isDark ? "#334155" : "#E5E7EB", true: "#6D44F2" }}
                   thumbColor="#FFFFFF"
                 />

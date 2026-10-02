@@ -107,6 +107,10 @@ export const authService = {
       avgScore: firestoreData?.avgScore ?? 0,
       totalXP: firestoreData?.totalXP ?? 100,
       tier: firestoreData?.tier || 'Bronze Scholar',
+      defaultDifficulty: firestoreData?.defaultDifficulty || 'Medium',
+      mistakeSync: firestoreData?.mistakeSync ?? true,
+      streakReminder: firestoreData?.streakReminder ?? true,
+      hapticFeedback: firestoreData?.hapticFeedback ?? true,
       createdAt:
         firestoreData?.createdAt ||
         fbUser.metadata.creationTime ||

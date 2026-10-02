@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   ScrollView,
@@ -51,12 +51,20 @@ export default function UploadQuiz() {
   const [uploadedSlides, setUploadedSlides] = useState<SlideBlock[] | undefined>(undefined);
   const [rawFile, setRawFile] = useState<File | null>(null); // raw File for Cloudinary upload
   const [questionCount, setQuestionCount] = useState(10);
-  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
+  const [difficulty, setDifficulty] = useState<Difficulty>(
+    (user?.defaultDifficulty || "Medium").toLowerCase() as Difficulty
+  );
   const [selectedTypes, setSelectedTypes] = useState<QuestionType[]>([
     "multiple_choice",
     "true_false",
   ]);
   const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    if (user?.defaultDifficulty) {
+      setDifficulty(user.defaultDifficulty.toLowerCase() as Difficulty);
+    }
+  }, [user?.defaultDifficulty]);
 
   // Draggable Slider logic (5 to 20 questions)
   const minQuestions = 5;
