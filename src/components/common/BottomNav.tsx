@@ -238,26 +238,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab }) => {
         ]}
         onLayout={handleLayout}
       >
-        {/* ─── Animated Sliding Curved Notch Cut ─── */}
-        {navWidth > 0 && (
-          <Animated.View style={[styles.notchWrapper, notchAnimStyle]}>
-            <Svg width={NOTCH_WIDTH} height={NOTCH_HEIGHT + 2} viewBox={`0 0 ${NOTCH_WIDTH} ${NOTCH_HEIGHT + 2}`}>
-              {/* Smooth Dip Path filled with outer background */}
-              <Path
-                d={`M 0 0 C 18 0 20 ${NOTCH_HEIGHT} ${NOTCH_WIDTH / 2} ${NOTCH_HEIGHT} C ${NOTCH_WIDTH - 20} ${NOTCH_HEIGHT} ${NOTCH_WIDTH - 18} 0 ${NOTCH_WIDTH} 0 L ${NOTCH_WIDTH} ${NOTCH_HEIGHT + 2} L 0 ${NOTCH_HEIGHT + 2} Z`}
-                fill={colors.background}
-              />
-              {/* Subtle contour edge outline */}
-              <Path
-                d={`M 0 0.5 C 18 0.5 20 ${NOTCH_HEIGHT} ${NOTCH_WIDTH / 2} ${NOTCH_HEIGHT} C ${NOTCH_WIDTH - 20} ${NOTCH_HEIGHT} ${NOTCH_WIDTH - 18} 0.5 ${NOTCH_WIDTH} 0.5`}
-                stroke={colors.cardBorder}
-                strokeWidth={1}
-                fill="none"
-              />
-            </Svg>
-          </Animated.View>
-        )}
-
         {/* ─── Elevated Sliding Active Ball (Floating Sphere) ─── */}
         {navWidth > 0 && (
           <Animated.View style={[styles.activeBallContainer, ballAnimStyle]}>
