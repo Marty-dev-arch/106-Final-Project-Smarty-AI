@@ -83,7 +83,7 @@ export default function BrainSpinner({
   const pulseScale = useSharedValue(1);
 
   const [autoProgress, setAutoProgress] = useState(0);
-  const [statusStep, setStatusStep] = useState('Initializing synthesis...');
+  const [statusStep, setStatusStep] = useState('Waiting for marty...');
 
   const activeProgress = typeof externalProgress === 'number' ? externalProgress : autoProgress;
 
@@ -109,20 +109,20 @@ export default function BrainSpinner({
     if (typeof externalProgress !== 'number') {
       let current = 5;
       const interval = setInterval(() => {
-        current += Math.floor(Math.random() * 12) + 6;
+        current += Math.floor(Math.random() * 6) + 4;
         if (current > 98) current = 98;
         setAutoProgress(current);
 
         if (current < 25) {
-          setStatusStep('Analyzing document structure & text...');
+          setStatusStep('Waiting for marty...');
         } else if (current < 55) {
-          setStatusStep('Extracting key concepts & definitions...');
+          setStatusStep('Marty is starting up..');
         } else if (current < 85) {
-          setStatusStep('Synthesizing questions & explanations...');
+          setStatusStep('Almost done');
         } else {
-          setStatusStep('Finalizing quiz package...');
+          setStatusStep('Done !');
         }
-      }, 150);
+      }, 200);
 
       return () => clearInterval(interval);
     }
@@ -180,7 +180,7 @@ export default function BrainSpinner({
         </Animated.View>
       </View>
 
-      {message && <Text style={[styles.messageText, { color }]}>{message}</Text>}
+      <Text style={[styles.messageText, { color }]}>{message || statusStep}</Text>
 
       {/* Live Visual Progress Bar Section */}
       <View style={styles.progressContainer}>

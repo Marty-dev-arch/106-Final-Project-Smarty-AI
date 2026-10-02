@@ -1,19 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   ScrollView,
-  Image,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Dimensions,
   Platform,
   KeyboardAvoidingView,
   Modal,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,20 +21,14 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
   withTiming,
-  withRepeat,
-  withSequence,
-  Easing,
-  interpolate,
 } from 'react-native-reanimated';
 
 import { RootStackParamList } from '../../types/navigation';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
 import { triggerHaptic } from '../../utils/haptics';
 import BlinkingMascot from '../../components/common/BlinkingMascot';
+import VideoBackground from '../../components/common/VideoBackground';
 import Svg, { Path } from 'react-native-svg';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ─── Authentic Google Logo SVG ───────────────────────────────────────────────
 const GoogleLogo: React.FC<{ size?: number }> = ({ size = 20 }) => (
@@ -60,86 +52,9 @@ const GoogleLogo: React.FC<{ size?: number }> = ({ size = 20 }) => (
   </Svg>
 );
 
-// ─── Floating Ambient Glow Orb ───────────────────────────────────────────────
-const AmbientGlowOrb: React.FC<{
-  size: number;
-  colors: [string, string, ...string[]];
-  initialPosition: { top?: number; left?: number; right?: number; bottom?: number };
-  duration?: number;
-}> = ({ size, colors, initialPosition, duration = 4000 }) => {
-  const translateY = useSharedValue(0);
-  const translateX = useSharedValue(0);
-  const scale = useSharedValue(1);
-
-  useEffect(() => {
-    translateY.value = withRepeat(
-      withSequence(
-        withTiming(-16, { duration, easing: Easing.inOut(Easing.quad) }),
-        withTiming(14, { duration: duration * 1.1, easing: Easing.inOut(Easing.quad) }),
-        withTiming(0, { duration: duration * 0.9, easing: Easing.inOut(Easing.quad) })
-      ),
-      -1,
-      true
-    );
-    translateX.value = withRepeat(
-      withSequence(
-        withTiming(12, { duration: duration * 1.2, easing: Easing.inOut(Easing.quad) }),
-        withTiming(-10, { duration: duration * 0.9, easing: Easing.inOut(Easing.quad) }),
-        withTiming(0, { duration: duration * 1.1, easing: Easing.inOut(Easing.quad) })
-      ),
-      -1,
-      true
-    );
-    scale.value = withRepeat(
-      withSequence(
-        withTiming(1.12, { duration: duration * 1.4, easing: Easing.inOut(Easing.quad) }),
-        withTiming(0.92, { duration: duration * 1.3, easing: Easing.inOut(Easing.quad) }),
-        withTiming(1, { duration: duration * 1.2, easing: Easing.inOut(Easing.quad) })
-      ),
-      -1,
-      true
-    );
-  }, []);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: translateY.value },
-      { translateX: translateX.value },
-      { scale: scale.value },
-    ],
-  }));
-
-  return (
-    <Animated.View
-      style={[
-        {
-          position: 'absolute',
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          opacity: 0.45,
-          overflow: 'hidden',
-          ...initialPosition,
-        },
-        animStyle,
-      ]}
-      pointerEvents="none"
-    >
-      <LinearGradient
-        colors={colors}
-        start={{ x: 0.1, y: 0.1 }}
-        end={{ x: 0.9, y: 0.9 }}
-        style={StyleSheet.absoluteFill}
-      />
-    </Animated.View>
-  );
-};
-
 export default function SignIn() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const insets = useSafeAreaInsets();
   const { signIn, signInWithGoogle, resetPassword } = useAuth();
-  const { colors, isDark } = useTheme();
 
   // Form Fields
   const [email, setEmail] = useState('');
@@ -156,30 +71,28 @@ export default function SignIn() {
   const [resetSuccess, setResetSuccess] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
 
-  // Active focus trackers for iOS glowing inputs
+  // Focus Trackers
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
-  // Entrance animations shared values
-  const cardScale = useSharedValue(0.94);
+  // Entrance Animations
+  const cardScale = useSharedValue(0.96);
   const cardOpacity = useSharedValue(0);
-  const cardTranslateY = useSharedValue(20);
 
   useEffect(() => {
-    cardScale.value = withSpring(1, { damping: 16, stiffness: 220 });
+    cardScale.value = withSpring(1, { damping: 18, stiffness: 200 });
     cardOpacity.value = withTiming(1, { duration: 450 });
-    cardTranslateY.value = withSpring(0, { damping: 15, stiffness: 190 });
   }, []);
 
   const animatedCardStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value,
-    transform: [{ scale: cardScale.value }, { translateY: cardTranslateY.value }],
+    transform: [{ scale: cardScale.value }],
   }));
 
   const handleSignIn = async () => {
     triggerHaptic.medium();
     if (!email.trim() || !password.trim()) {
       triggerHaptic.error();
-      setError('Please enter your email and password.');
+      setError('Please enter your email/username and password.');
       return;
     }
     setLoading(true);
@@ -190,7 +103,26 @@ export default function SignIn() {
       navigation.navigate('Dashboard');
     } catch (err: any) {
       triggerHaptic.error();
-      setError(err.message || 'Failed to sign in.');
+      let msg = err?.message || 'Failed to sign in.';
+      const code = (err?.code || '').toLowerCase();
+      const raw = (err?.message || '').toLowerCase();
+
+      if (
+        code.includes('invalid-credential') ||
+        code.includes('wrong-password') ||
+        code.includes('user-not-found') ||
+        raw.includes('invalid-credential') ||
+        raw.includes('wrong-password') ||
+        raw.includes('user-not-found')
+      ) {
+        msg = 'Incorrect username or password. Please try again';
+      } else if (code.includes('too-many-requests') || raw.includes('too-many-requests')) {
+        msg = 'Too many failed attempts. Please reset your password or try again later.';
+      } else if (code.includes('invalid-email') || raw.includes('invalid-email')) {
+        msg = 'Please enter a valid email address.';
+      }
+
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -234,45 +166,19 @@ export default function SignIn() {
       setResetSuccess(true);
     } catch (err: any) {
       triggerHaptic.error();
-      setResetError(err.message || 'Failed to send reset link. Please check your email and try again.');
+      setResetError(err.message || 'Failed to send reset link.');
     } finally {
       setResetLoading(false);
     }
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: isDark ? '#090814' : '#F7F6FD' }]}>
-      {/* ─── Ambient iOS Mesh Gradient Orbs ───────────────────────────────────── */}
-      <AmbientGlowOrb
-        size={SCREEN_WIDTH * 0.85}
-        colors={isDark ? ['#5B21B6', '#312E81', '#1E1B4B'] : ['#C4B5FD', '#E0E7FF', '#DDD6FE']}
-        initialPosition={{ top: -60, right: -60 }}
-        duration={4200}
-      />
-      <AmbientGlowOrb
-        size={SCREEN_WIDTH * 0.75}
-        colors={isDark ? ['#4338CA', '#3730A3', '#1E1B4B'] : ['#DDD6FE', '#F3E8FF', '#E0E7FF']}
-        initialPosition={{ top: SCREEN_HEIGHT * 0.35, left: -80 }}
-        duration={4800}
-      />
-      <AmbientGlowOrb
-        size={SCREEN_WIDTH * 0.65}
-        colors={isDark ? ['#6D28D9', '#4C1D95', '#0F172A'] : ['#E9D5FF', '#FCE7F3', '#EDE9FE']}
-        initialPosition={{ bottom: -40, right: -40 }}
-        duration={3600}
-      />
-
+    <VideoBackground overlayOpacity={0.3}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        {/* ─── Top iOS Navigation Bar ─────────────────────────────────────────── */}
+        {/* ─── Top Navigation Header ───────────────────────────────────────── */}
         <View style={styles.navBar}>
           <TouchableOpacity
-            style={[
-              styles.navBackBtn,
-              {
-                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.75)',
-                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)',
-              },
-            ]}
+            style={styles.navBackBtn}
             onPress={() => {
               triggerHaptic.light();
               if (navigation.canGoBack()) navigation.goBack();
@@ -280,7 +186,7 @@ export default function SignIn() {
             }}
             activeOpacity={0.75}
           >
-            <Ionicons name="chevron-back" size={20} color={isDark ? '#F1F5F9' : '#1E1B4B'} />
+            <Ionicons name="chevron-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
@@ -294,93 +200,54 @@ export default function SignIn() {
             keyboardShouldPersistTaps="handled"
           >
             <Animated.View style={[styles.cardWrapper, animatedCardStyle]}>
-              
-              {/* ─── Mascot & Brand Header ───────────────────────────────────── */}
+              {/* ─── Mascot 3D Avatar Header ───────────────────────────────── */}
               <View style={styles.heroHeader}>
                 <View style={styles.mascotHaloContainer}>
                   <LinearGradient
-                    colors={['#8B5CF6', '#6366F1', '#EC4899']}
+                    colors={['#3B82F6', '#2563EB', '#1D4ED8']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.mascotHaloGlow}
                   />
-                  <View
-                    style={[
-                      styles.mascotPlate,
-                      {
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.25)',
-                        borderColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.4)',
-                      },
-                    ]}
-                  >
-                    <BlinkingMascot size={68} style={styles.mascotAvatar} />
+                  <View style={styles.mascotPlate}>
+                    <BlinkingMascot size={72} style={styles.mascotAvatar} />
                   </View>
                 </View>
 
-                <Text style={[styles.mainHeading, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>
-                  Welcome to Smarty
-                </Text>
-                <Text style={[styles.subHeading, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                  Supercharge your learning with AI quizzes & streaks.
-                </Text>
+                <Text style={styles.mainHeading}>Welcome Back!</Text>
+                <Text style={styles.subHeading}>welcome back we missed you</Text>
               </View>
 
-              {/* ─── Error Notification Banner ───────────────────────────────── */}
-              {error && (
-                <View
-                  style={[
-                    styles.errorBanner,
-                    {
-                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : '#FEF2F2',
-                      borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : '#FCA5A5',
-                    },
-                  ]}
-                >
-                  <Ionicons name="alert-circle" size={18} color="#EF4444" style={{ marginRight: 8 }} />
-                  <Text style={styles.errorBannerText}>{error}</Text>
-                </View>
-              )}
-
-              {/* ─── iOS Translucent Glass Form Card ─────────────────────────── */}
-              <View
-                style={[
-                  styles.glassFormCard,
-                  {
-                    backgroundColor: isDark ? 'rgba(26, 23, 48, 0.65)' : 'rgba(255, 255, 255, 0.85)',
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.95)',
-                    shadowColor: isDark ? '#000000' : '#4F46E5',
-                  },
-                ]}
-              >
-                {/* Email Address Input */}
+              {/* ─── Transparent Form Container ────────────────────────────── */}
+              <View style={styles.transparentFormContainer}>
+                {/* Username Input with Gradient Backdrop */}
                 <View style={styles.inputGroup}>
-                  <Text style={[styles.fieldLabel, { color: isDark ? '#CBD5E1' : '#475569' }]}>
-                    EMAIL ADDRESS
-                  </Text>
-                  <View
+                  <Text style={styles.fieldLabel}>Username</Text>
+                  <LinearGradient
+                    colors={
+                      focusedField === 'email'
+                        ? ['rgba(59, 130, 246, 0.3)', 'rgba(37, 99, 235, 0.2)']
+                        : ['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.05)']
+                    }
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
                     style={[
-                      styles.iosInputContainer,
+                      styles.inputGradientContainer,
                       {
-                        backgroundColor: isDark ? 'rgba(15, 13, 30, 0.7)' : '#F8FAFC',
-                        borderColor:
-                          focusedField === 'email'
-                            ? '#7C3AED'
-                            : isDark
-                            ? 'rgba(255,255,255,0.08)'
-                            : '#E2E8F0',
+                        borderColor: focusedField === 'email' ? '#3B82F6' : 'rgba(255, 255, 255, 0.25)',
                       },
                     ]}
                   >
                     <Ionicons
-                      name="mail-outline"
-                      size={20}
-                      color={focusedField === 'email' ? '#7C3AED' : isDark ? '#64748B' : '#94A3B8'}
-                      style={styles.fieldLeftIcon}
+                      name="person-outline"
+                      size={18}
+                      color={focusedField === 'email' ? '#60A5FA' : 'rgba(255, 255, 255, 0.7)'}
+                      style={styles.fieldIcon}
                     />
                     <TextInput
-                      style={[styles.iosTextInput, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
-                      placeholder="name@university.edu"
-                      placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                      style={styles.textInput}
+                      placeholder="Username or email"
+                      placeholderTextColor="rgba(255, 255, 255, 0.45)"
                       value={email}
                       onChangeText={(t) => {
                         setEmail(t);
@@ -392,47 +259,37 @@ export default function SignIn() {
                       keyboardType="email-address"
                       autoCorrect={false}
                     />
-                    {email.length > 0 && (
-                      <TouchableOpacity
-                        onPress={() => setEmail('')}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Ionicons name="close-circle" size={18} color={isDark ? '#64748B' : '#CBD5E1'} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                  </LinearGradient>
                 </View>
 
-                {/* Password Input */}
+                {/* Password Input with Gradient Backdrop */}
                 <View style={[styles.inputGroup, { marginTop: 14 }]}>
-                  <Text style={[styles.fieldLabel, { color: isDark ? '#CBD5E1' : '#475569' }]}>
-                    PASSWORD
-                  </Text>
-
-                  <View
+                  <Text style={styles.fieldLabel}>Password</Text>
+                  <LinearGradient
+                    colors={
+                      focusedField === 'password'
+                        ? ['rgba(59, 130, 246, 0.3)', 'rgba(37, 99, 235, 0.2)']
+                        : ['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.05)']
+                    }
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
                     style={[
-                      styles.iosInputContainer,
+                      styles.inputGradientContainer,
                       {
-                        backgroundColor: isDark ? 'rgba(15, 13, 30, 0.7)' : '#F8FAFC',
-                        borderColor:
-                          focusedField === 'password'
-                            ? '#7C3AED'
-                            : isDark
-                            ? 'rgba(255,255,255,0.08)'
-                            : '#E2E8F0',
+                        borderColor: focusedField === 'password' ? '#3B82F6' : 'rgba(255, 255, 255, 0.25)',
                       },
                     ]}
                   >
                     <Ionicons
-                      name="lock-closed-outline"
-                      size={20}
-                      color={focusedField === 'password' ? '#7C3AED' : isDark ? '#64748B' : '#94A3B8'}
-                      style={styles.fieldLeftIcon}
+                      name="key-outline"
+                      size={18}
+                      color={focusedField === 'password' ? '#60A5FA' : 'rgba(255, 255, 255, 0.7)'}
+                      style={styles.fieldIcon}
                     />
                     <TextInput
-                      style={[styles.iosTextInput, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
+                      style={styles.textInput}
                       placeholder="••••••••••••"
-                      placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                      placeholderTextColor="rgba(255, 255, 255, 0.45)"
                       value={password}
                       onChangeText={(t) => {
                         setPassword(t);
@@ -452,13 +309,13 @@ export default function SignIn() {
                     >
                       <Ionicons
                         name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                        size={20}
-                        color={isDark ? '#94A3B8' : '#64748B'}
+                        size={18}
+                        color="rgba(255, 255, 255, 0.7)"
                       />
                     </TouchableOpacity>
-                  </View>
+                  </LinearGradient>
 
-                  {/* ─── Forgot Password Link Below Password Field ─────────────── */}
+                  {/* Forgot Password Link */}
                   <TouchableOpacity
                     onPress={() => {
                       triggerHaptic.light();
@@ -470,13 +327,19 @@ export default function SignIn() {
                     style={styles.forgotBtnBelow}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.forgotLinkText, { color: isDark ? '#A78BFA' : '#6D44F2' }]}>
-                      Forgot password?
-                    </Text>
+                    <Text style={styles.forgotLinkText}>Forgot Password?</Text>
                   </TouchableOpacity>
+
+                  {/* ─── Error Notification Banner (Below Password) ───────── */}
+                  {error && (
+                    <View style={styles.errorBanner}>
+                      <Ionicons name="alert-circle" size={16} color="#FCA5A5" style={{ marginRight: 6 }} />
+                      <Text style={styles.errorBannerText}>{error}</Text>
+                    </View>
+                  )}
                 </View>
 
-                {/* ─── Apple-Grade Gradient Submit Button ───────────────────── */}
+                {/* ─── Gradient Submit Button (Dashboard Blue Theme) ───────── */}
                 <TouchableOpacity
                   onPress={handleSignIn}
                   disabled={loading}
@@ -484,76 +347,60 @@ export default function SignIn() {
                   style={styles.submitBtnWrapper}
                 >
                   <LinearGradient
-                    colors={['#6D44F2', '#5844E8', '#4648D4']}
+                    colors={['#3B82F6', '#2563EB', '#1D4ED8']}
                     start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+                    end={{ x: 1, y: 0 }}
                     style={styles.gradientSubmitBtn}
                   >
                     {loading ? (
-                      <ActivityIndicator color="#FFFFFF" size="small" />
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <ActivityIndicator color="#FFFFFF" size="small" style={{ marginRight: 8 }} />
+                        <Text style={styles.submitBtnText}>Signing in...</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.submitBtnText}>Sign in</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                {/* ─── Divider: "Or continue with" ─────────────────────────── */}
+                <View style={styles.dividerRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>Or continue with</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                {/* ─── Google Sign In Button ───────────────────────────────── */}
+                <TouchableOpacity
+                  style={styles.googleGlassBtn}
+                  onPress={handleGoogleSignIn}
+                  disabled={googleLoading}
+                  activeOpacity={0.82}
+                >
+                  <LinearGradient
+                    colors={['rgba(255, 255, 255, 0.16)', 'rgba(255, 255, 255, 0.06)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.googleGlassGradient}
+                  >
+                    {googleLoading ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <ActivityIndicator color="#FFFFFF" size="small" style={{ marginRight: 8 }} />
+                        <Text style={styles.googleBtnText}>Signing in...</Text>
+                      </View>
                     ) : (
                       <>
-                        <Text style={styles.submitBtnText}>Sign In to Account</Text>
-                        <View style={styles.submitArrowCircle}>
-                          <Ionicons name="arrow-forward" size={16} color="#5844E8" />
-                        </View>
+                        <GoogleLogo size={20} />
+                        <Text style={styles.googleBtnText}>Sign in with Google</Text>
                       </>
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
 
-              {/* ─── Divider: "OR QUICK ACCESS" ─────────────────────────────── */}
-              <View style={styles.dividerRow}>
-                <View
-                  style={[
-                    styles.dividerLine,
-                    { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' },
-                  ]}
-                />
-                <Text style={[styles.dividerText, { color: isDark ? '#64748B' : '#94A3B8' }]}>
-                  OR CONNECT WITH
-                </Text>
-                <View
-                  style={[
-                    styles.dividerLine,
-                    { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' },
-                  ]}
-                />
-              </View>
-
-              {/* ─── Modern Google Sign In Button ────────────────────────────── */}
-              <View style={styles.socialButtonsRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.googleSignInBtn,
-                    {
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#FFFFFF',
-                      borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#E2E8F0',
-                    },
-                  ]}
-                  onPress={handleGoogleSignIn}
-                  disabled={googleLoading}
-                  activeOpacity={0.82}
-                >
-                  {googleLoading ? (
-                    <ActivityIndicator color={isDark ? '#FFFFFF' : '#4285F4'} size="small" />
-                  ) : (
-                    <>
-                      <GoogleLogo size={20} />
-                      <Text style={[styles.googleSignInText, { color: isDark ? '#FFFFFF' : '#1E293B' }]}>
-                        Sign in with Google
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-
               {/* ─── Switch to Register / Sign Up ─────────────────────────── */}
               <View style={styles.switchRow}>
-                <Text style={[styles.switchText, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                  Don't have an account?{' '}
-                </Text>
+                <Text style={styles.switchText}>Don't have an account? </Text>
                 <TouchableOpacity
                   onPress={() => {
                     triggerHaptic.selection();
@@ -561,18 +408,9 @@ export default function SignIn() {
                   }}
                   activeOpacity={0.75}
                 >
-                  <Text style={styles.switchLink}>Register</Text>
+                  <Text style={styles.switchLink}>Sign up</Text>
                 </TouchableOpacity>
               </View>
-
-              {/* ─── Security Footer Note ───────────────────────────────────── */}
-              <View style={styles.footerNoteRow}>
-                <Ionicons name="shield-checkmark" size={14} color="#10B981" style={{ marginRight: 6 }} />
-                <Text style={[styles.footerNoteText, { color: isDark ? '#64748B' : '#94A3B8' }]}>
-                  Protected with Firebase 256-bit Cloud Security
-                </Text>
-              </View>
-
             </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -594,25 +432,14 @@ export default function SignIn() {
             activeOpacity={1}
             onPress={() => setShowForgotModal(false)}
           />
-          <View
-            style={[
-              styles.modalCard,
-              {
-                backgroundColor: isDark ? '#16132B' : '#FFFFFF',
-                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-              },
-            ]}
-          >
+          <View style={styles.modalCard}>
             {/* Modal Close Button */}
             <TouchableOpacity
-              style={[
-                styles.modalCloseBtn,
-                { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' },
-              ]}
+              style={styles.modalCloseBtn}
               onPress={() => setShowForgotModal(false)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close" size={18} color={isDark ? '#94A3B8' : '#64748B'} />
+              <Ionicons name="close" size={18} color="#94A3B8" />
             </TouchableOpacity>
 
             {resetSuccess ? (
@@ -620,12 +447,12 @@ export default function SignIn() {
                 <View style={styles.modalSuccessIconCircle}>
                   <Ionicons name="checkmark-circle" size={44} color="#10B981" />
                 </View>
-                <Text style={[styles.modalTitle, { color: isDark ? '#FFFFFF' : '#0F172A', marginTop: 12 }]}>
+                <Text style={[styles.modalTitle, { marginTop: 12 }]}>
                   Reset Link Sent!
                 </Text>
-                <Text style={[styles.modalSubTitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                <Text style={styles.modalSubTitle}>
                   We've sent password reset instructions to{' '}
-                  <Text style={{ fontWeight: '700', color: isDark ? '#C4B5FD' : '#6D28D9' }}>
+                  <Text style={{ fontWeight: '700', color: '#60A5FA' }}>
                     {resetEmail.trim()}
                   </Text>
                   . Please check your inbox and spam folder.
@@ -640,7 +467,7 @@ export default function SignIn() {
                   activeOpacity={0.88}
                 >
                   <LinearGradient
-                    colors={['#6D44F2', '#5844E8']}
+                    colors={['#3B82F6', '#2563EB', '#1D4ED8']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.modalPrimaryBtn}
@@ -652,12 +479,10 @@ export default function SignIn() {
             ) : (
               <View style={styles.modalFormBody}>
                 <View style={styles.modalKeyIconCircle}>
-                  <Ionicons name="key" size={26} color="#8B5CF6" />
+                  <Ionicons name="key" size={26} color="#3B82F6" />
                 </View>
-                <Text style={[styles.modalTitle, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>
-                  Reset Password
-                </Text>
-                <Text style={[styles.modalSubTitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                <Text style={styles.modalTitle}>Reset Password</Text>
+                <Text style={styles.modalSubTitle}>
                   Enter your registered email address and we'll send you instructions to reset your password.
                 </Text>
 
@@ -669,28 +494,18 @@ export default function SignIn() {
                 )}
 
                 <View style={[styles.inputGroup, { marginTop: 16 }]}>
-                  <Text style={[styles.fieldLabel, { color: isDark ? '#CBD5E1' : '#475569' }]}>
-                    EMAIL ADDRESS
-                  </Text>
-                  <View
-                    style={[
-                      styles.iosInputContainer,
-                      {
-                        backgroundColor: isDark ? 'rgba(15, 13, 30, 0.7)' : '#F8FAFC',
-                        borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
-                      },
-                    ]}
-                  >
+                  <Text style={styles.fieldLabel}>EMAIL ADDRESS</Text>
+                  <View style={styles.inputContainer}>
                     <Ionicons
                       name="mail-outline"
-                      size={20}
-                      color={isDark ? '#64748B' : '#94A3B8'}
-                      style={styles.fieldLeftIcon}
+                      size={18}
+                      color="rgba(255,255,255,0.6)"
+                      style={styles.fieldIcon}
                     />
                     <TextInput
-                      style={[styles.iosTextInput, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
+                      style={[styles.textInput, { color: '#FFFFFF' }]}
                       placeholder="name@university.edu"
-                      placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                      placeholderTextColor="rgba(255,255,255,0.35)"
                       value={resetEmail}
                       onChangeText={(t) => {
                         setResetEmail(t);
@@ -710,7 +525,7 @@ export default function SignIn() {
                   activeOpacity={0.88}
                 >
                   <LinearGradient
-                    colors={['#6D44F2', '#5844E8']}
+                    colors={['#3B82F6', '#2563EB', '#1D4ED8']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.modalPrimaryBtn}
@@ -728,23 +543,18 @@ export default function SignIn() {
                   onPress={() => setShowForgotModal(false)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.modalCancelText, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                    Cancel
-                  </Text>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </VideoBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
   safeArea: {
     flex: 1,
   },
@@ -757,61 +567,31 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   navBackBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  navCenterBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(124, 58, 237, 0.08)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  navGreenDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#10B981',
-    marginRight: 6,
-  },
-  navBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  navHelpBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 19,
-    borderWidth: 1,
-  },
-  guestPillText: {
-    fontSize: 12,
-    fontWeight: '700',
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingBottom: 36,
+    paddingBottom: 40,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   cardWrapper: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: 400,
     alignItems: 'center',
   },
 
-  // Hero Header & Mascot
+  // Hero Header & Mascot Avatar
   heroHeader: {
     alignItems: 'center',
-    marginTop: 6,
     marginBottom: 20,
   },
   mascotHaloContainer: {
@@ -827,69 +607,37 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    opacity: 0.45,
+    opacity: 0.5,
   },
   mascotPlate: {
     width: 80,
     height: 80,
     borderRadius: 40,
+    backgroundColor: 'rgba(20, 16, 40, 0.65)',
     borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#8B5CF6',
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
   },
   mascotAvatar: {
     marginTop: 0,
   },
   mainHeading: {
-    fontSize: 26,
+    fontSize: 30,
     fontWeight: '800',
+    color: '#FFFFFF',
     letterSpacing: -0.5,
-    marginBottom: 6,
+    marginBottom: 4,
     textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   subHeading: {
     fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 16,
-    fontWeight: '400',
-  },
-
-  // iOS Segmented Switcher
-  segmentedContainer: {
-    flexDirection: 'row',
-    width: '100%',
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 1,
-    padding: 4,
-    marginBottom: 16,
-    position: 'relative',
-  },
-  segmentedIndicator: {
-    position: 'absolute',
-    top: 4,
-    bottom: 4,
-    left: 4,
-    borderRadius: 19,
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  segmentBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  segmentBtnText: {
-    fontSize: 14,
-    letterSpacing: -0.2,
+    fontWeight: '500',
   },
 
   // Error Banner
@@ -897,97 +645,100 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
+    backgroundColor: 'rgba(239, 68, 68, 0.25)',
     borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.5)',
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    marginBottom: 16,
+    marginTop: 10,
   },
   errorBannerText: {
     flex: 1,
     fontSize: 13,
     fontWeight: '600',
-    color: '#EF4444',
-    lineHeight: 18,
+    color: '#FCA5A5',
   },
 
-  // Glass Form Card
-  glassFormCard: {
+  // Completely Transparent Form Container
+  transparentFormContainer: {
     width: '100%',
-    borderRadius: 28,
-    borderWidth: 1.5,
-    padding: 20,
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 10 },
-    shadowRadius: 24,
-    elevation: 10,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 0,
   },
   inputGroup: {
     width: '100%',
   },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
   fieldLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    marginBottom: 6,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
-  iosInputContainer: {
+  inputGradientContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     height: 52,
     borderRadius: 16,
     borderWidth: 1.5,
+    paddingHorizontal: 16,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: 14,
   },
-  fieldLeftIcon: {
+  fieldIcon: {
     marginRight: 10,
   },
-  iosTextInput: {
+  textInput: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '500',
-    paddingVertical: 8,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  // Forgot Password Link Below Input
+  forgotBtnBelow: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
+  },
+  forgotLinkText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.85)',
   },
 
   // Submit Button
   submitBtnWrapper: {
     width: '100%',
-    borderRadius: 20,
-    marginTop: 20,
-    shadowColor: '#6D44F2',
-    shadowOpacity: 0.4,
+    borderRadius: 18,
+    marginTop: 24,
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.5,
     shadowOffset: { width: 0, height: 8 },
     shadowRadius: 18,
     elevation: 10,
   },
   gradientSubmitBtn: {
     height: 54,
-    borderRadius: 20,
-    flexDirection: 'row',
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
   },
   submitBtnText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 16.5,
     fontWeight: '800',
     letterSpacing: -0.2,
-    marginRight: 10,
-  },
-  submitArrowCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 
   // Divider
@@ -995,43 +746,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    marginVertical: 20,
+    marginVertical: 22,
   },
   dividerLine: {
     flex: 1,
     height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   dividerText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 0.6,
-    paddingHorizontal: 12,
+    color: 'rgba(255, 255, 255, 0.75)',
+    paddingHorizontal: 14,
   },
 
-  // Social Google Sign In Button
-  socialButtonsRow: {
-    width: '100%',
-  },
-  googleSignInBtn: {
+  // Google Sign In Glass Button
+  googleGlassBtn: {
     width: '100%',
     height: 52,
     borderRadius: 18,
+    overflow: 'hidden',
+  },
+  googleGlassGradient: {
+    width: '100%',
+    height: '100%',
     borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 18,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
-    shadowColor: '#000000',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-    elevation: 3,
   },
-  googleSignInText: {
+  googleBtnText: {
     fontSize: 15,
     fontWeight: '700',
-    letterSpacing: -0.2,
-    marginLeft: 10,
+    color: '#FFFFFF',
+    marginLeft: 12,
   },
 
   // Switch Link
@@ -1039,40 +790,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 22,
+    marginTop: 24,
   },
   switchText: {
-    fontSize: 14,
+    fontSize: 14.5,
     fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   switchLink: {
-    fontSize: 14,
+    fontSize: 14.5,
     fontWeight: '800',
-    color: '#7C3AED',
-  },
-
-  // Forgot Password Link Below Input
-  forgotBtnBelow: {
-    alignSelf: 'flex-end',
-    marginTop: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 2,
-  },
-  forgotLinkText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-
-  // Security Note
-  footerNoteRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 18,
-  },
-  footerNoteText: {
-    fontSize: 11.5,
-    fontWeight: '500',
+    color: '#60A5FA',
   },
 
   // ─── Forgot Password Modal Styles ──────────────────────────────────────────
@@ -1088,17 +816,19 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
   },
   modalCard: {
     width: '100%',
     maxWidth: 400,
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 1.5,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+    backgroundColor: '#0F172A',
     padding: 24,
-    shadowColor: '#000000',
+    shadowColor: '#3B82F6',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.3,
     shadowRadius: 24,
     elevation: 12,
     position: 'relative',
@@ -1110,6 +840,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
@@ -1118,7 +849,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
@@ -1128,7 +859,7 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
@@ -1144,12 +875,14 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '800',
+    color: '#FFFFFF',
     textAlign: 'center',
     letterSpacing: -0.3,
   },
   modalSubTitle: {
     fontSize: 13.5,
     fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 20,
@@ -1158,9 +891,9 @@ const styles = StyleSheet.create({
   modalErrorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 9,
@@ -1176,8 +909,8 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 18,
     marginTop: 20,
-    shadowColor: '#6D44F2',
-    shadowOpacity: 0.35,
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.4,
     shadowOffset: { width: 0, height: 6 },
     shadowRadius: 14,
     elevation: 6,
@@ -1204,5 +937,6 @@ const styles = StyleSheet.create({
   modalCancelText: {
     fontSize: 14,
     fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.65)',
   },
 });

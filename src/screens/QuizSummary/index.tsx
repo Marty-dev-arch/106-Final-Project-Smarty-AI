@@ -42,7 +42,7 @@ export default function QuizSummary() {
         title="Quiz Summary"
         showBell
         showActions
-        onBack={() => navigation.navigate("Dashboard")}
+        onBack={() => navigation.navigate("MyQuizzes")}
       />
 
       <ScrollView

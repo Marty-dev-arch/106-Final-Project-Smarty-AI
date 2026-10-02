@@ -53,6 +53,9 @@ export default function QuizTaking() {
   const [showAnswerKeyModal, setShowAnswerKeyModal] = useState(false);
   const [showQuestionNavModal, setShowQuestionNavModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [flashcardMode, setFlashcardMode] = useState(false);
+  const [revealedFlashcards, setRevealedFlashcards] = useState<{ [qId: string]: boolean }>({});
   const [renameTitleInput, setRenameTitleInput] = useState("");
   const [renaming, setRenaming] = useState(false);
 
@@ -119,12 +122,15 @@ export default function QuizTaking() {
     }
   }, [currentQuestionIndex, currentQ?.id, isEditing]);
 
-  const handleGoBack = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.navigate("Dashboard");
+  const handleGoBack = async () => {
+    if (quiz && (currentQuestionIndex > 0 || Object.keys(userAnswers).length > 0)) {
+      await updateActiveQuiz({
+        ...quiz,
+        savedProgressIndex: currentQuestionIndex,
+        savedUserAnswers: userAnswers,
+      }).catch(() => {});
     }
+    navigation.navigate("MyQuizzes");
   };
 
   const handleSaveQuestionEdit = async () => {
@@ -362,46 +368,16 @@ export default function QuizTaking() {
             <Ionicons name="pencil" size={13} color="#6D44F2" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
 
-          <View style={styles.metaActionsRight}>
-            {/* Answer Key Button */}
-            <TouchableOpacity
-              style={[styles.exportBtn, { borderColor: "#D1FAE5", backgroundColor: "#ECFDF5" }]}
-              onPress={() => setShowAnswerKeyModal(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="key-outline" size={14} color="#059669" style={{ marginRight: 4 }} />
-              <Text style={[styles.exportBtnText, { color: "#059669" }]}>Answer Key</Text>
-            </TouchableOpacity>
-
-            {/* Toggle Edit Button */}
-            <TouchableOpacity
-              style={[styles.editToggleBtn, isEditing && styles.editToggleBtnActive]}
-              onPress={() => {
-                triggerHaptic.selection();
-                setIsEditing(!isEditing);
-              }}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={isEditing ? "eye-outline" : "create-outline"}
-                size={14}
-                color={isEditing ? "#FFFFFF" : "#6D44F2"}
-                style={{ marginRight: 4 }}
-              />
-              <Text style={[styles.editToggleText, isEditing && styles.editToggleTextActive]}>
-                {isEditing ? "Preview" : "Edit"}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.exportBtn}
-              onPress={() => setShowExportModal(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="download-outline" size={14} color={THEME.colors.primary} style={{ marginRight: 4 }} />
-              <Text style={styles.exportBtnText}>Export</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.threeDotsBtn}
+            onPress={() => {
+              triggerHaptic.light();
+              setShowSettingsMenu(true);
+            }}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="ellipsis-vertical" size={18} color="#4B5563" />
+          </TouchableOpacity>
         </View>
 
         {/* ─── EDIT MODE OR PREVIEW/TAKE MODE ───────────────────────────────── */}
@@ -688,47 +664,110 @@ export default function QuizTaking() {
               {quiz.title} • {quiz.questions.length} Questions
             </Text>
 
-            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
-              {quiz.questions.map((q, qIdx) => {
-                const correctIdx = typeof q.correctAnswer === 'number' ? q.correctAnswer : parseInt(String(q.correctAnswer), 10) || 0;
-                return (
-                  <View key={q.id || qIdx} style={styles.keyItemBox}>
-                    <Text style={styles.keyQuestionTitle}>
-                      Q{qIdx + 1}. {q.prompt}
-                    </Text>
-                    <View style={styles.keyOptionsCol}>
-                      {q.options.map((opt, oIdx) => {
-                        const isCorrect = oIdx === correctIdx;
-                        return (
-                          <View
-                            key={oIdx}
-                            style={[
-                              styles.keyOptRow,
-                              isCorrect && styles.keyOptRowCorrect,
-                            ]}
-                          >
-                            <Text style={[styles.keyOptLetter, isCorrect && { color: "#059669", fontWeight: "700" }]}>
-                              {OPTION_LETTERS[oIdx]}. {opt}
-                            </Text>
-                            {isCorrect && (
-                              <View style={styles.correctPill}>
-                                <Ionicons name="checkmark-circle" size={12} color="#059669" style={{ marginRight: 3 }} />
-                                <Text style={styles.correctPillText}>Correct Answer</Text>
-                              </View>
-                            )}
-                          </View>
-                        );
-                      })}
-                    </View>
-                    {q.explanation ? (
-                      <View style={styles.keyExpBox}>
-                        <Text style={styles.keyExpText}>💡 {q.explanation}</Text>
+            {/* Mode Switcher Pill */}
+            <View style={styles.flashcardToggleRow}>
+              <TouchableOpacity
+                style={[styles.flashcardTab, !flashcardMode && styles.flashcardTabActive]}
+                onPress={() => setFlashcardMode(false)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="list" size={13} color={!flashcardMode ? "#FFFFFF" : "#64748B"} style={{ marginRight: 4 }} />
+                <Text style={[styles.flashcardTabText, !flashcardMode && styles.flashcardTabTextActive]}>List View</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.flashcardTab, flashcardMode && styles.flashcardTabActive]}
+                onPress={() => setFlashcardMode(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="albums-outline" size={13} color={flashcardMode ? "#FFFFFF" : "#64748B"} style={{ marginRight: 4 }} />
+                <Text style={[styles.flashcardTabText, flashcardMode && styles.flashcardTabTextActive]}>Flashcards Mode</Text>
+              </TouchableOpacity>
+            </View>
+
+            {flashcardMode ? (
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                {quiz.questions.map((q, qIdx) => {
+                  const cardKey = q.id || `q_${qIdx}`;
+                  const isRevealed = Boolean(revealedFlashcards[cardKey]);
+                  const correctIdx = typeof q.correctAnswer === 'number' ? q.correctAnswer : parseInt(String(q.correctAnswer), 10) || 0;
+                  const correctOptionText = q.options[correctIdx] || q.options[0];
+
+                  return (
+                    <View key={cardKey} style={styles.flashcardCard}>
+                      <View style={styles.flashcardHeaderRow}>
+                        <Text style={styles.flashcardBadgeText}>FLASHCARD {qIdx + 1}/{quiz.questions.length}</Text>
+                        <Ionicons name="help-circle-outline" size={16} color="#6D44F2" />
                       </View>
-                    ) : null}
-                  </View>
-                );
-              })}
-            </ScrollView>
+                      <Text style={styles.flashcardQuestionText}>{q.prompt}</Text>
+
+                      {isRevealed ? (
+                        <View style={styles.flashcardAnswerBox}>
+                          <View style={styles.flashcardCorrectHeader}>
+                            <Ionicons name="checkmark-circle" size={16} color="#059669" style={{ marginRight: 6 }} />
+                            <Text style={styles.flashcardCorrectTitle}>Answer: {OPTION_LETTERS[correctIdx]}. {correctOptionText}</Text>
+                          </View>
+                          {q.explanation ? (
+                            <Text style={styles.flashcardExpText}>💡 {q.explanation}</Text>
+                          ) : null}
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.revealAnswerBtn}
+                          onPress={() => setRevealedFlashcards(prev => ({ ...prev, [cardKey]: true }))}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="sparkles" size={15} color="#6D44F2" style={{ marginRight: 6 }} />
+                          <Text style={styles.revealAnswerBtnText}>Tap to Reveal Answer & Study Note</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            ) : (
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                {quiz.questions.map((q, qIdx) => {
+                  const correctIdx = typeof q.correctAnswer === 'number' ? q.correctAnswer : parseInt(String(q.correctAnswer), 10) || 0;
+                  return (
+                    <View key={q.id || qIdx} style={styles.keyItemBox}>
+                      <Text style={styles.keyQuestionTitle}>
+                        Q{qIdx + 1}. {q.prompt}
+                      </Text>
+                      <View style={styles.keyOptionsCol}>
+                        {q.options.map((opt, oIdx) => {
+                          const isCorrect = oIdx === correctIdx;
+                          return (
+                            <View
+                              key={oIdx}
+                              style={[
+                                styles.keyOptRow,
+                                isCorrect && styles.keyOptRowCorrect,
+                              ]}
+                            >
+                              <Text style={[styles.keyOptLetter, isCorrect && { color: "#059669", fontWeight: "700" }]}>
+                                {OPTION_LETTERS[oIdx]}. {opt}
+                              </Text>
+                              {isCorrect && (
+                                <View style={styles.correctPill}>
+                                  <Ionicons name="checkmark-circle" size={12} color="#059669" style={{ marginRight: 3 }} />
+                                  <Text style={styles.correctPillText}>Correct Answer</Text>
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })}
+                      </View>
+                      {q.explanation ? (
+                        <View style={styles.keyExpBox}>
+                          <Text style={styles.keyExpText}>💡 {q.explanation}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
 
             <TouchableOpacity
               style={styles.modalCloseBtn}
@@ -870,6 +909,100 @@ export default function QuizTaking() {
           </View>
         </View>
       </Modal>
+
+      {/* ─── 3-DOTS SETTINGS MENU MODAL ─── */}
+      <Modal
+        visible={showSettingsMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSettingsMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSettingsMenu(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.settingsMenuCard}>
+            <View style={styles.settingsMenuHeader}>
+              <Text style={styles.settingsMenuTitle}>Quiz Options</Text>
+              <TouchableOpacity
+                onPress={() => setShowSettingsMenu(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Function 1: Answer Key */}
+            <TouchableOpacity
+              style={styles.menuOptionRow}
+              onPress={() => {
+                triggerHaptic.light();
+                setShowSettingsMenu(false);
+                setShowAnswerKeyModal(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.menuOptionIconBox, { backgroundColor: "#ECFDF5" }]}>
+                <Ionicons name="key-outline" size={18} color="#059669" />
+              </View>
+              <View style={styles.menuOptionTextCol}>
+                <Text style={styles.menuOptionTitle}>Answer Key</Text>
+                <Text style={styles.menuOptionSub}>View correct answers & study notes</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+            </TouchableOpacity>
+
+            {/* Function 2: Edit Question */}
+            <TouchableOpacity
+              style={styles.menuOptionRow}
+              onPress={() => {
+                triggerHaptic.selection();
+                setShowSettingsMenu(false);
+                setIsEditing(!isEditing);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.menuOptionIconBox, { backgroundColor: "#F5F3FF" }]}>
+                <Ionicons
+                  name={isEditing ? "eye-outline" : "create-outline"}
+                  size={18}
+                  color="#6D44F2"
+                />
+              </View>
+              <View style={styles.menuOptionTextCol}>
+                <Text style={styles.menuOptionTitle}>
+                  {isEditing ? "Preview Question" : "Edit Question"}
+                </Text>
+                <Text style={styles.menuOptionSub}>
+                  {isEditing ? "Switch back to preview mode" : "Customize question prompt and choices"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+            </TouchableOpacity>
+
+            {/* Function 3: Export Quiz */}
+            <TouchableOpacity
+              style={[styles.menuOptionRow, { borderBottomWidth: 0 }]}
+              onPress={() => {
+                triggerHaptic.light();
+                setShowSettingsMenu(false);
+                setShowExportModal(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.menuOptionIconBox, { backgroundColor: "#EEF2FF" }]}>
+                <Ionicons name="download-outline" size={18} color="#4648D4" />
+              </View>
+              <View style={styles.menuOptionTextCol}>
+                <Text style={styles.menuOptionTitle}>Export Quiz</Text>
+                <Text style={styles.menuOptionSub}>Download as PDF, DOCX, or PPTX</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -1005,47 +1138,69 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     letterSpacing: -0.2,
   },
-  metaActionsRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  editToggleBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F5F3FF",
-    borderWidth: 1,
-    borderColor: "#DDD6FE",
+  threeDotsBtn: {
+    width: 36,
+    height: 36,
     borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  editToggleBtnActive: {
-    backgroundColor: "#6D44F2",
-    borderColor: "#6D44F2",
-  },
-  editToggleText: {
-    fontSize: 12.5,
-    fontWeight: "700",
-    color: "#6D44F2",
-  },
-  editToggleTextActive: {
-    color: "#FFFFFF",
-  },
-  exportBtn: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  exportBtnText: {
-    fontSize: 12.5,
-    fontWeight: "600",
-    color: THEME.colors.primary,
+  settingsMenuCard: {
+    width: "88%",
+    maxWidth: 360,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  settingsMenuHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  settingsMenuTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  menuOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F8FAFC",
+  },
+  menuOptionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  menuOptionTextCol: {
+    flex: 1,
+  },
+  menuOptionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  menuOptionSub: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
   },
 
   // ─── Regular View Styles ──────────────────────────────────────────────────
@@ -1673,5 +1828,98 @@ const styles = StyleSheet.create({
     color: "#334155",
     lineHeight: 16,
     fontWeight: "500",
+  },
+  flashcardToggleRow: {
+    flexDirection: "row",
+    backgroundColor: "#F1F5F9",
+    borderRadius: 12,
+    padding: 3,
+    marginBottom: 14,
+  },
+  flashcardTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 7,
+    borderRadius: 9,
+  },
+  flashcardTabActive: {
+    backgroundColor: "#6D44F2",
+  },
+  flashcardTabText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  flashcardTabTextActive: {
+    color: "#FFFFFF",
+  },
+  flashcardCard: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  flashcardHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  flashcardBadgeText: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: "#6D44F2",
+    letterSpacing: 0.5,
+  },
+  flashcardQuestionText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0F172A",
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  revealAnswerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F5F3FF",
+    borderWidth: 1.5,
+    borderColor: "#DDD6FE",
+    borderStyle: "dashed",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  revealAnswerBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#6D44F2",
+  },
+  flashcardAnswerBox: {
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    borderRadius: 12,
+    padding: 12,
+  },
+  flashcardCorrectHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  flashcardCorrectTitle: {
+    fontSize: 13.5,
+    fontWeight: "800",
+    color: "#059669",
+    flex: 1,
+  },
+  flashcardExpText: {
+    fontSize: 12,
+    color: "#047857",
+    marginTop: 6,
+    lineHeight: 16,
   },
 });

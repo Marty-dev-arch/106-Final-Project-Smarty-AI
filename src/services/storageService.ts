@@ -61,7 +61,7 @@ export const storageService = {
 
   async addQuiz(quiz: Quiz): Promise<void> {
     const list = await this.getQuizzes();
-    const updated = [quiz, ...list];
+    const updated = [quiz, ...list.filter((q) => q.id !== quiz.id)];
     await this.saveQuizzes(updated);
   },
 

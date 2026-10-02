@@ -63,7 +63,7 @@ export default function Results() {
       <TopBar
         title="Quiz Summary Review"
         showBack
-        onBack={() => navigation.navigate("Dashboard")}
+        onBack={() => navigation.navigate("MyQuizzes")}
         showLogo={false}
         showActions
       />
@@ -78,7 +78,7 @@ export default function Results() {
 
           <TouchableOpacity
             style={styles.closeBtn}
-            onPress={() => navigation.navigate("Dashboard")}
+            onPress={() => navigation.navigate("MyQuizzes")}
             activeOpacity={0.7}
           >
             <Ionicons name="close" size={18} color="#1B1931" />
@@ -179,13 +179,13 @@ export default function Results() {
           </TouchableOpacity>
         )}
 
-        {/* Back to Home Link */}
+        {/* Back to Quizzes Link */}
         <TouchableOpacity
           style={styles.backHomeBtn}
-          onPress={() => navigation.navigate("Dashboard")}
+          onPress={() => navigation.navigate("MyQuizzes")}
           activeOpacity={0.7}
         >
-          <Text style={styles.backHomeText}>Back to home</Text>
+          <Text style={styles.backHomeText}>Back to Quizzes</Text>
         </TouchableOpacity>
       </ScrollView>
 

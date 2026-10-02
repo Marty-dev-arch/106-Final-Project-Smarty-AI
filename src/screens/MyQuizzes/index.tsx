@@ -268,7 +268,13 @@ export default function MyQuizzes() {
                         <View style={[styles.difficultyBadge, { backgroundColor: diffMeta.bg, borderColor: diffMeta.borderColor }]}>
                           <Text style={[styles.difficultyText, { color: diffMeta.color }]}>{diffMeta.label}</Text>
                         </View>
-                        {hasScore ? (
+                        {typeof quiz.savedProgressIndex === "number" && quiz.savedProgressIndex > 0 ? (
+                          <View style={[styles.scoreBadge, { backgroundColor: isDark ? "#2E1065" : "#F5F3FF", borderColor: "#8B5CF6", borderWidth: 1 }]}>
+                            <Text style={[styles.scoreBadgeText, { color: "#7C3AED", fontWeight: "800" }]}>
+                              Resume Q{quiz.savedProgressIndex + 1}
+                            </Text>
+                          </View>
+                        ) : hasScore ? (
                           <View style={[styles.scoreBadge, isDark && { backgroundColor: "#1E1B4B" }]}>
                             <Text style={styles.scoreBadgeText}>{quiz.bestScore}%</Text>
                             <Ionicons name="checkmark" size={12} color="#8B5CF6" style={{ marginLeft: 2 }} />

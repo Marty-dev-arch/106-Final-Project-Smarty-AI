@@ -66,7 +66,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signIn = async (email: string, pass: string) => {
-    setLoading(true);
     setError(null);
     try {
       const u = await authService.signIn(email, pass);
@@ -75,13 +74,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const msg = err.message || 'Failed to sign in.';
       setError(msg);
       throw err;
-    } finally {
-      setLoading(false);
     }
   };
 
   const signUp = async (email: string, pass: string, name?: string) => {
-    setLoading(true);
     setError(null);
     try {
       const u = await authService.signUp(email, pass, name);
@@ -90,13 +86,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const msg = err.message || 'Failed to create account.';
       setError(msg);
       throw err;
-    } finally {
-      setLoading(false);
     }
   };
 
   const signInWithGoogle = async () => {
-    setLoading(true);
     setError(null);
     try {
       const u = await authService.signInWithGoogle();
@@ -105,8 +98,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const msg = err.message || 'Failed to sign in with Google.';
       setError(msg);
       throw err;
-    } finally {
-      setLoading(false);
     }
   };
 

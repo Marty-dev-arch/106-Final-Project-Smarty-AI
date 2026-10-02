@@ -27,6 +27,8 @@ export interface Quiz {
   bestScore?: number;
   timesTaken?: number;
   timeLimitMinutes?: number;
+  savedProgressIndex?: number;
+  savedUserAnswers?: { [questionId: string]: string | number };
 }
 
 export interface QuizAttempt {

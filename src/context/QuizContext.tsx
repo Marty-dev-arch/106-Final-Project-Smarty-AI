@@ -92,8 +92,14 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const startQuiz = (quiz: Quiz) => {
     setActiveQuiz(quiz);
-    setCurrentQuestionIndex(0);
-    setUserAnswers({});
+    const initialIndex =
+      typeof quiz.savedProgressIndex === "number" &&
+      quiz.savedProgressIndex < (quiz.questions?.length || 1)
+        ? quiz.savedProgressIndex
+        : 0;
+    const initialAnswers = quiz.savedUserAnswers || {};
+    setCurrentQuestionIndex(initialIndex);
+    setUserAnswers(initialAnswers);
   };
 
   const selectAnswer = (questionId: string, answer: string | number) => {
@@ -153,6 +159,12 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setLatestAttempt(attempt);
 
+    // Clear saved progress on completion
+    if (activeQuiz.savedProgressIndex !== undefined || activeQuiz.savedUserAnswers) {
+      const cleared = { ...activeQuiz, savedProgressIndex: undefined, savedUserAnswers: undefined };
+      await quizService.updateQuiz(cleared).catch(() => {});
+    }
+
     // Save and update user progress (passing activeQuiz for real question preservation)
     await quizService.recordQuizAttempt(attempt, activeQuiz);
     await refreshUser();
@@ -184,6 +196,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const newQuiz = await geminiService.generateQuiz(params);
       await quizService.saveQuiz(newQuiz);
+      setQuizzes((prev) => [newQuiz, ...prev.filter((q) => q.id !== newQuiz.id)]);
       await refreshData();
 
       // Send realtime notification

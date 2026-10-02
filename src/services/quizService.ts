@@ -61,47 +61,53 @@ export const quizService = {
    * Tries Firestore first (with fast 3s fallback), merges with AsyncStorage.
    */
   async getQuizzes(): Promise<Quiz[]> {
+    const localQuizzes = await storageService.getQuizzes();
     const effUid = getEffectiveUid(this.currentUid);
+
+    let remoteQuizzes: Quiz[] = [];
     if (isFirebaseInitialized && db && effUid) {
       try {
         const col = collection(db, 'users', effUid, 'quizzes');
         const snap: any = await withTimeout(getDocs(col), 5000);
         if (snap) {
-          const remoteQuizzes: Quiz[] = [];
           snap.forEach((d: any) => remoteQuizzes.push({ id: d.id, ...d.data() } as Quiz));
-
-          const sorted = remoteQuizzes.sort(
-            (a, b) =>
-              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-          );
-
-          // Cache remote user's exact quizzes locally
-          await storageService.saveQuizzes(sorted);
-          return sorted;
         }
       } catch (err) {
         console.warn('[quizService] Firestore getQuizzes notice:', err);
       }
     }
-    return await storageService.getQuizzes();
+
+    // Merge remote & local quizzes by ID so newly generated local quizzes are never wiped
+    const quizMap = new Map<string, Quiz>();
+    localQuizzes.forEach((q) => {
+      if (q && q.id) quizMap.set(q.id, q);
+    });
+    remoteQuizzes.forEach((q) => {
+      if (q && q.id) quizMap.set(q.id, { ...quizMap.get(q.id), ...q });
+    });
+
+    const merged = Array.from(quizMap.values()).sort(
+      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+
+    await storageService.saveQuizzes(merged);
+    return merged;
   },
 
   /**
-   * Save a quiz to local storage immediately and sync to Firestore in background.
+   * Save a quiz to local storage immediately and sync to Firestore.
    */
   async saveQuiz(quiz: Quiz): Promise<void> {
     // 1. Always write locally first for instantaneous UX
     await storageService.addQuiz(quiz);
 
-    // 2. Sync to Firestore in background without blocking the UI
-    if (isFirebaseInitialized && db) {
+    // 2. Sync to Firestore
+    const effUid = getEffectiveUid(this.currentUid);
+    if (isFirebaseInitialized && db && effUid) {
       try {
-        const docRef = userQuizDocPath(this.currentUid, quiz.id);
-        if (docRef) {
-          setDoc(docRef, quiz, { merge: true })
-            .then(() => console.log('[quizService] Quiz saved to Firestore:', quiz.id))
-            .catch((e) => console.warn('[quizService] Firestore sync notice:', e));
-        }
+        const docRef = doc(db, 'users', effUid, 'quizzes', quiz.id);
+        await setDoc(docRef, quiz, { merge: true });
+        console.log('[quizService] Quiz saved to Firestore:', quiz.id);
       } catch (err) {
         console.warn('[quizService] Firestore save error:', err);
       }

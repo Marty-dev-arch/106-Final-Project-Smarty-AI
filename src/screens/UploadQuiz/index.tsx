@@ -205,7 +205,15 @@ export default function UploadQuiz() {
         sourceDocName: uploadedFile?.name,
         sourceDocUrl: docUrl,
       });
+
+      // Clear uploaded file & topic state so form is fresh
+      setUploadedFile(null);
+      setRawFile(null);
+      setSourceText("");
+      setUploadedSlides(undefined);
+      setTitle("");
       setGenerating(false);
+
       startQuiz(generated);
       navigation.navigate("QuizTaking", { quizId: generated.id });
     } catch (e: any) {
@@ -239,7 +247,6 @@ export default function UploadQuiz() {
         <BrainSpinner
           fullScreen
           size={84}
-          message="Synthesizing quiz with Gemini AI..."
         />
       )}
 
