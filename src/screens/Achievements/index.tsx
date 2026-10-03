@@ -38,6 +38,16 @@ interface MedalItem {
   description?: string;
 }
 
+const getRelativeFormattedDate = (daysAgo: number = 0) => {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
 const MEDALS_DATA: MedalItem[] = [
   {
     id: "gold_scholar",
@@ -45,7 +55,7 @@ const MEDALS_DATA: MedalItem[] = [
     category: "General",
     iconName: "ribbon",
     isUnlocked: true,
-    earnedDate: "Sep 12, 2026",
+    earnedDate: getRelativeFormattedDate(0),
     tier: "GOLD TIER • LEVEL 5",
     description:
       "Awarded for scoring 90% or higher on 10 consecutive advanced quizzes across any subject without hints.",
@@ -56,7 +66,7 @@ const MEDALS_DATA: MedalItem[] = [
     category: "Knowledge",
     iconName: "bulb",
     isUnlocked: true,
-    earnedDate: "Sep 10, 2026",
+    earnedDate: getRelativeFormattedDate(2),
     tier: "GOLD TIER • LEVEL 4",
     description:
       "Awarded for completing 5 diagnostic smart drills with zero conceptual errors.",
@@ -67,7 +77,7 @@ const MEDALS_DATA: MedalItem[] = [
     category: "Speed",
     iconName: "flash",
     isUnlocked: true,
-    earnedDate: "Sep 8, 2026",
+    earnedDate: getRelativeFormattedDate(4),
     tier: "GOLD TIER • LEVEL 3",
     description:
       "Awarded for completing 15 quizzes within the fastest 25% speed percentile.",
@@ -78,7 +88,7 @@ const MEDALS_DATA: MedalItem[] = [
     category: "Endurance",
     iconName: "shield",
     isUnlocked: true,
-    earnedDate: "Sep 5, 2026",
+    earnedDate: getRelativeFormattedDate(7),
     tier: "GOLD TIER • LEVEL 4",
     description:
       "Awarded for maintaining a daily streak for 12 consecutive calendar days.",
@@ -89,7 +99,7 @@ const MEDALS_DATA: MedalItem[] = [
     category: "Mastery",
     iconName: "trophy",
     isUnlocked: true,
-    earnedDate: "Aug 28, 2026",
+    earnedDate: getRelativeFormattedDate(14),
     tier: "GOLD TIER • LEVEL 5",
     description:
       "Awarded for unlocking all foundation achievements and conquering 20 quizzes.",
@@ -244,6 +254,7 @@ export default function Achievements() {
         iconUri: "",
         progress: medal.isUnlocked ? 10 : 0,
         totalRequired: 10,
+        unlockedDate: medal.earnedDate || getRelativeFormattedDate(0),
       },
     });
   };
