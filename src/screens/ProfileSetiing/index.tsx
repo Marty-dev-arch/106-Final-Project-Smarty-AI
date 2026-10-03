@@ -274,9 +274,7 @@ export default function ProfileSetiing() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        const selectedUri = asset.base64
-          ? `data:image/jpeg;base64,${asset.base64}`
-          : asset.uri;
+        const selectedUri = asset.uri; // Use local URI so ImageManipulator works correctly on iOS
 
         setRawImageUri(selectedUri);
         setCropZoom(1);

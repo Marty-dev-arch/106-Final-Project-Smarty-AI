@@ -289,6 +289,37 @@ export const quizService = {
     return { updatedStreak, newAvgScore };
   },
 
+  async getAttempts(): Promise<QuizAttempt[]> {
+    const localAttempts = await storageService.getAttempts();
+    const effUid = getEffectiveUid(this.currentUid);
+
+    if (isFirebaseInitialized && db && effUid) {
+      try {
+        const colRef = collection(db, 'users', effUid, 'attempts');
+        const snap = await withTimeout(getDocs(colRef), 5000);
+        let remoteAttempts: QuizAttempt[] = [];
+        if (snap) {
+          snap.forEach((d) => remoteAttempts.push(d.data() as QuizAttempt));
+        }
+        
+        const attemptMap = new Map<string, QuizAttempt>();
+        localAttempts.forEach((a) => attemptMap.set(a.id, a));
+        remoteAttempts.forEach((a) => attemptMap.set(a.id, a));
+        
+        const merged = Array.from(attemptMap.values()).sort((a, b) => {
+          const tA = b.date ? new Date(b.date).getTime() : 0;
+          const tB = a.date ? new Date(a.date).getTime() : 0;
+          return tB - tA; 
+        });
+        
+        return merged;
+      } catch (err) {
+        console.warn('Firebase getAttempts error', err);
+      }
+    }
+    return localAttempts;
+  },
+
   async getMistakes(): Promise<MistakeItem[]> {
     return await storageService.getMistakes();
   },

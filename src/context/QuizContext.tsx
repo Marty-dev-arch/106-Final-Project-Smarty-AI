@@ -14,6 +14,7 @@ interface QuizContextType {
   userAnswers: { [questionId: string]: string | number };
   latestAttempt: QuizAttempt | null;
   mistakes: MistakeItem[];
+  attempts: QuizAttempt[];
   medals: Medal[];
   isLoading: boolean;
   startQuiz: (quiz: Quiz) => void;
@@ -54,6 +55,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userAnswers, setUserAnswers] = useState<{ [questionId: string]: string | number }>({});
   const [latestAttempt, setLatestAttempt] = useState<QuizAttempt | null>(null);
   const [mistakes, setMistakes] = useState<MistakeItem[]>([]);
+  const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
   const [medals, setMedals] = useState<Medal[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -62,6 +64,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     quizService.currentUid = user?.uid;
     setQuizzes([]);
     setMistakes([]);
+    setAttempts([]);
     setMedals([]);
     setActiveQuiz(null);
     refreshData();
@@ -70,13 +73,15 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshData = async () => {
     setIsLoading(true);
     try {
-      const [qList, mList, medList] = await Promise.all([
+      const [qList, mList, aList, medList] = await Promise.all([
         quizService.getQuizzes(),
         quizService.getMistakes(),
+        quizService.getAttempts(),
         quizService.getMedals(),
       ]);
       setQuizzes(qList);
       setMistakes(mList);
+      setAttempts(aList);
       setMedals(medList);
 
       // Auto-heal user stats in Firestore and state if 0 quizzes exist but stats are non-zero
@@ -94,7 +99,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setActiveQuiz(quiz);
     const initialIndex =
       typeof quiz.savedProgressIndex === "number" &&
-      quiz.savedProgressIndex < (quiz.questions?.length || 1)
+        quiz.savedProgressIndex < (quiz.questions?.length || 1)
         ? quiz.savedProgressIndex
         : 0;
     const initialAnswers = quiz.savedUserAnswers || {};
@@ -162,7 +167,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Clear saved progress on completion
     if (activeQuiz.savedProgressIndex !== undefined || activeQuiz.savedUserAnswers) {
       const cleared = { ...activeQuiz, savedProgressIndex: undefined, savedUserAnswers: undefined };
-      await quizService.updateQuiz(cleared).catch(() => {});
+      await quizService.updateQuiz(cleared).catch(() => { });
     }
 
     // Save and update user progress (passing activeQuiz for real question preservation)
@@ -176,7 +181,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
       message: `You scored ${percentage}% on "${activeQuiz.title}" (+${earnedXP} XP)`,
       type: 'quiz_completed',
       actionScreen: 'Performance',
-    }).catch(() => {});
+    }).catch(() => { });
 
     return attempt;
   };
@@ -205,7 +210,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
         message: `"${newQuiz.title}" generated with ${newQuiz.questions.length} questions.`,
         type: 'system',
         actionScreen: 'MyQuizzes',
-      }).catch(() => {});
+      }).catch(() => { });
 
       return newQuiz;
     } finally {
@@ -319,6 +324,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setQuizzes([]);
       setActiveQuiz(null);
       setMistakes([]);
+      setAttempts([]);
       setUserAnswers({});
       setCurrentQuestionIndex(0);
 
@@ -346,6 +352,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
         userAnswers,
         latestAttempt,
         mistakes,
+        attempts,
         medals,
         isLoading,
         startQuiz,
