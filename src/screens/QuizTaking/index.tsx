@@ -283,7 +283,11 @@ export default function QuizTaking() {
         showActions
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Navigation Sub-bar */}
         <View style={styles.subBarRow}>
           <TouchableOpacity
@@ -549,47 +553,71 @@ export default function QuizTaking() {
             </View>
 
             {/* Options List */}
-            <View style={styles.optionsContainer}>
-              {currentQ.options.map((option, index) => {
-                const isSelected = selectedAnswer === index;
-                const letter = OPTION_LETTERS[index] || `${index + 1}`;
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.optionCard,
-                      isSelected ? styles.optionCardSelected : styles.optionCardDefault,
-                    ]}
-                    onPress={() => {
-                      triggerHaptic.selection();
-                      selectAnswer(currentQ.id, index);
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <View style={[styles.previewLetterBadge, isSelected && styles.previewLetterBadgeSelected]}>
-                      <Text style={[styles.previewLetterText, isSelected && styles.previewLetterTextSelected]}>
-                        {letter}
-                      </Text>
-                    </View>
-
-                    <Text
+            {currentQ.type === 'enumeration' ? (
+              <View style={styles.optionsContainer}>
+                <TextInput
+                  style={{
+                    backgroundColor: "#F8FAFC",
+                    borderWidth: 1.5,
+                    borderColor: "#E2E8F0",
+                    borderRadius: 16,
+                    padding: 16,
+                    fontSize: 16,
+                    color: "#0F172A",
+                    minHeight: 56,
+                  }}
+                  placeholder="Type your answer here..."
+                  placeholderTextColor="#94A3B8"
+                  value={selectedAnswer !== undefined ? String(selectedAnswer) : ""}
+                  onChangeText={(text) => selectAnswer(currentQ.id, text)}
+                  autoCapitalize="none"
+                  returnKeyType={isLastQuestion ? "done" : "next"}
+                  onSubmitEditing={handleNextOrFinish}
+                />
+              </View>
+            ) : (
+              <View style={styles.optionsContainer}>
+                {currentQ.options.map((option, index) => {
+                  const isSelected = selectedAnswer === index;
+                  const letter = OPTION_LETTERS[index] || `${index + 1}`;
+                  return (
+                    <TouchableOpacity
+                      key={index}
                       style={[
-                        styles.optionText,
-                        isSelected ? styles.optionTextSelected : styles.optionTextDefault,
+                        styles.optionCard,
+                        isSelected ? styles.optionCardSelected : styles.optionCardDefault,
                       ]}
+                      onPress={() => {
+                        triggerHaptic.selection();
+                        selectAnswer(currentQ.id, index);
+                      }}
+                      activeOpacity={0.85}
                     >
-                      {option}
-                    </Text>
+                      <View style={[styles.previewLetterBadge, isSelected && styles.previewLetterBadgeSelected]}>
+                        <Text style={[styles.previewLetterText, isSelected && styles.previewLetterTextSelected]}>
+                          {letter}
+                        </Text>
+                      </View>
 
-                    {isSelected ? (
-                      <Ionicons name="checkmark-circle" size={22} color="#6D44F2" />
-                    ) : (
-                      <View style={styles.emptyCircleIndicator} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                      <Text
+                        style={[
+                          styles.optionText,
+                          isSelected ? styles.optionTextSelected : styles.optionTextDefault,
+                        ]}
+                      >
+                        {option}
+                      </Text>
+
+                      {isSelected ? (
+                        <Ionicons name="checkmark-circle" size={22} color="#6D44F2" />
+                      ) : (
+                        <View style={styles.emptyCircleIndicator} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
 
             {/* ─── PROMINENT "ADD NEW QUESTION PAGE" BUTTON ON THE LAST QUESTION ── */}
             {isLastQuestion && (
@@ -690,8 +718,9 @@ export default function QuizTaking() {
                 {quiz.questions.map((q, qIdx) => {
                   const cardKey = q.id || `q_${qIdx}`;
                   const isRevealed = Boolean(revealedFlashcards[cardKey]);
-                  const correctIdx = typeof q.correctAnswer === 'number' ? q.correctAnswer : parseInt(String(q.correctAnswer), 10) || 0;
-                  const correctOptionText = q.options[correctIdx] || q.options[0];
+                  const isEnum = q.type === 'enumeration';
+                  const correctIdx = typeof q.correctAnswer === 'number' ? q.correctAnswer : (isEnum ? 0 : parseInt(String(q.correctAnswer), 10) || 0);
+                  const correctOptionText = isEnum ? String(q.correctAnswer) : (q.options[correctIdx] || q.options[0]);
 
                   return (
                     <View key={cardKey} style={styles.flashcardCard}>
@@ -705,7 +734,7 @@ export default function QuizTaking() {
                         <View style={styles.flashcardAnswerBox}>
                           <View style={styles.flashcardCorrectHeader}>
                             <Ionicons name="checkmark-circle" size={16} color="#059669" style={{ marginRight: 6 }} />
-                            <Text style={styles.flashcardCorrectTitle}>Answer: {OPTION_LETTERS[correctIdx]}. {correctOptionText}</Text>
+                            <Text style={styles.flashcardCorrectTitle}>Answer: {isEnum ? correctOptionText : `${OPTION_LETTERS[correctIdx]}. ${correctOptionText}`}</Text>
                           </View>
                           {q.explanation ? (
                             <Text style={styles.flashcardExpText}>💡 {q.explanation}</Text>
@@ -728,14 +757,26 @@ export default function QuizTaking() {
             ) : (
               <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
                 {quiz.questions.map((q, qIdx) => {
-                  const correctIdx = typeof q.correctAnswer === 'number' ? q.correctAnswer : parseInt(String(q.correctAnswer), 10) || 0;
+                  const isEnum = q.type === 'enumeration';
+                  const correctIdx = typeof q.correctAnswer === 'number' ? q.correctAnswer : (isEnum ? 0 : parseInt(String(q.correctAnswer), 10) || 0);
+                  
                   return (
                     <View key={q.id || qIdx} style={styles.keyItemBox}>
                       <Text style={styles.keyQuestionTitle}>
                         Q{qIdx + 1}. {q.prompt}
                       </Text>
                       <View style={styles.keyOptionsCol}>
-                        {q.options.map((opt, oIdx) => {
+                        {isEnum ? (
+                            <View style={[styles.keyOptRow, styles.keyOptRowCorrect]}>
+                              <Text style={[styles.keyOptLetter, { color: "#059669", fontWeight: "700" }]}>
+                                Answer: {String(q.correctAnswer)}
+                              </Text>
+                              <View style={styles.correctPill}>
+                                <Ionicons name="checkmark-circle" size={12} color="#059669" style={{ marginRight: 3 }} />
+                                <Text style={styles.correctPillText}>Correct Answer</Text>
+                              </View>
+                            </View>
+                        ) : q.options.map((opt, oIdx) => {
                           const isCorrect = oIdx === correctIdx;
                           return (
                             <View

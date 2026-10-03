@@ -156,11 +156,65 @@ export default function Achievements() {
       isUnlocked: userXP >= 1000,
       tier: "GOLD TIER • LEVEL 5",
       description: "Accumulate 1,000 Total XP in your linked Firebase account.",
+    }
+  ];
+
+  const displayBadges: MedalItem[] = [
+    {
+      id: "badge_1",
+      title: "First Quiz",
+      category: "Milestone",
+      iconName: "checkmark-done-circle",
+      isUnlocked: userQuizzes >= 1,
+      tier: "BADGE • NOVICE",
+      description: "Complete your first ever quiz.",
+    },
+    {
+      id: "badge_2",
+      title: "Perfect Score",
+      category: "Milestone",
+      iconName: "star",
+      isUnlocked: userAvgScore === 100 && userQuizzes > 0,
+      tier: "BADGE • EXPERT",
+      description: "Get a perfect 100% on a quiz.",
+    },
+    {
+      id: "badge_3",
+      title: "Consistent Learner",
+      category: "Milestone",
+      iconName: "flame",
+      isUnlocked: userStreak >= 5,
+      tier: "BADGE • VETERAN",
+      description: "Maintain a 5-day study streak.",
     },
   ];
 
-  const unlockedCount = displayMedals.filter((m) => m.isUnlocked).length;
-  const unlockedPercent = Math.round((unlockedCount / displayMedals.length) * 100);
+  const displayRibbons: MedalItem[] = [
+    {
+      id: "ribbon_1",
+      title: "Top 10%",
+      category: "Rank",
+      iconName: "bookmark",
+      isUnlocked: userXP > 2000,
+      tier: "RIBBON • ELITE",
+      description: "Reach the top 10% of XP earners.",
+    },
+    {
+      id: "ribbon_2",
+      title: "Subject Master",
+      category: "Rank",
+      iconName: "library",
+      isUnlocked: userQuizzes >= 10,
+      tier: "RIBBON • SCHOLAR",
+      description: "Complete 10 quizzes.",
+    }
+  ];
+
+  const activeData = activeTab === "Badges" ? displayBadges : activeTab === "Ribbons" ? displayRibbons : displayMedals;
+  const unlockedCount = activeData.filter((m) => m.isUnlocked).length;
+  const unlockedPercent = Math.round((unlockedCount / activeData.length) * 100);
+
+  const totalUnlockedMedals = displayMedals.filter((m) => m.isUnlocked).length;
 
   const streakInfo = evaluateStreak(user?.streak, user?.lastActiveDate, user?.longestStreak);
 
@@ -235,7 +289,7 @@ export default function Achievements() {
                 <Text style={styles.trophyBlueLabel}>Trophy</Text>
               </View>
               <Text style={[styles.heroTitle, { color: colors.text }]}>Master Collector</Text>
-              <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>{unlockedCount} of 5 Medals unlocked</Text>
+              <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>{totalUnlockedMedals} of {displayMedals.length} Medals unlocked</Text>
             </View>
           </View>
 
@@ -302,9 +356,9 @@ export default function Achievements() {
           {/* Medal Collection Progress Card */}
           <View style={[styles.progressCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <View style={styles.progressHeaderRow}>
-              <Text style={[styles.progressCardTitle, { color: colors.text }]}>Medal Collection Progress</Text>
+              <Text style={[styles.progressCardTitle, { color: colors.text }]}>{activeTab} Collection Progress</Text>
               <View style={styles.progressValueGroup}>
-                <Text style={styles.unlockedFractionText}>{unlockedCount}/5 Unlocked</Text>
+                <Text style={styles.unlockedFractionText}>{unlockedCount}/{activeData.length} Unlocked</Text>
                 <Text style={[styles.progressPercentText, { color: colors.text }]}>{unlockedPercent}%</Text>
               </View>
             </View>
@@ -315,7 +369,7 @@ export default function Achievements() {
 
           {/* Section: Unlocked */}
           <View style={styles.unlockedHeaderRow}>
-            <Text style={[styles.unlockedSectionTitle, { color: colors.text }]}>Medals ({unlockedCount} of 5 Unlocked)</Text>
+            <Text style={[styles.unlockedSectionTitle, { color: colors.text }]}>{activeTab} ({unlockedCount} of {activeData.length} Unlocked)</Text>
             <TouchableOpacity style={styles.filterBtn} activeOpacity={0.7}>
               <Text style={styles.filterText}>Filter</Text>
               <Ionicons name="options-outline" size={14} color="#4338CA" style={{ marginLeft: 4 }} />
@@ -324,40 +378,40 @@ export default function Achievements() {
 
           {/* 3-Column Medals Grid */}
           <View style={styles.medalsGrid}>
-            {displayMedals.map((medal) => (
+            {activeData.map((item) => (
               <TouchableOpacity
-                key={medal.id}
-                style={[styles.medalGridItem, !medal.isUnlocked && { opacity: 0.65 }]}
-                onPress={() => handleOpenMedal(medal)}
+                key={item.id}
+                style={[styles.medalGridItem, !item.isUnlocked && { opacity: 0.65 }]}
+                onPress={() => handleOpenMedal(item)}
                 activeOpacity={0.82}
               >
-                {/* Gradient Medal Circle */}
+                {/* Gradient Circle */}
                 <View style={styles.medalCircleWrapper}>
                   <LinearGradient
                     colors={
-                      medal.isUnlocked
-                        ? ["#E5A93C", "#C2831B", "#8C5810"]
+                      item.isUnlocked
+                        ? activeTab === "Badges" ? ["#3B82F6", "#2563EB", "#1D4ED8"] : activeTab === "Ribbons" ? ["#EF4444", "#DC2626", "#B91C1C"] : ["#E5A93C", "#C2831B", "#8C5810"]
                         : ["#94A3B8", "#64748B", "#475569"]
                     }
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.goldMedalCircle}
                   >
-                    <Ionicons name={medal.iconName} size={30} color="#FFFFFF" />
+                    <Ionicons name={item.iconName} size={30} color="#FFFFFF" />
                   </LinearGradient>
 
                   {/* Badge: Checkmark if Unlocked, Lock if Locked */}
-                  <View style={[styles.checkBadge, !medal.isUnlocked && { backgroundColor: "#64748B" }]}>
-                    <Ionicons name={medal.isUnlocked ? "checkmark" : "lock-closed"} size={9} color="#FFFFFF" />
+                  <View style={[styles.checkBadge, !item.isUnlocked && { backgroundColor: "#64748B" }]}>
+                    <Ionicons name={item.isUnlocked ? "checkmark" : "lock-closed"} size={9} color="#FFFFFF" />
                   </View>
                 </View>
 
                 {/* Title & Status */}
                 <Text style={[styles.medalItemTitle, { color: colors.text }]} numberOfLines={1}>
-                  {medal.title}
+                  {item.title}
                 </Text>
-                <Text style={[styles.medalItemStatus, !medal.isUnlocked && { color: colors.textMuted }]}>
-                  {medal.isUnlocked ? "Earned" : "Locked"}
+                <Text style={[styles.medalItemStatus, !item.isUnlocked && { color: colors.textMuted }]}>
+                  {item.isUnlocked ? "Earned" : "Locked"}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -375,7 +429,7 @@ export default function Achievements() {
             <View style={styles.categoryMasteredTextCol}>
               <Text style={[styles.categoryMasteredTitle, { color: colors.text }]}>Category Mastered</Text>
               <Text style={[styles.categoryMasteredSubtitle, { color: colors.textSecondary }]}>
-                {unlockedCount} of 5 Medals Unlocked
+                {totalUnlockedMedals} of {displayMedals.length} Medals Unlocked
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />

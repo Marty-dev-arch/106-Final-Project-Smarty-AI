@@ -30,6 +30,8 @@ import NotificationDropdown from "../../components/common/NotificationDropdown";
 import BrainSpinner from "../../components/common/BrainSpinner";
 import THEME from "../../config/theme";
 import { documentExtractor, SlideBlock } from "../../utils/documentExtractor";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 import { uploadDocumentToCloudinary } from "../../services/cloudinaryService";
 
 interface UploadedFileInfo {
@@ -103,7 +105,7 @@ export default function UploadQuiz() {
   const sliderProgress = Math.max(0, Math.min(1, (questionCount - minQuestions) / (maxQuestions - minQuestions)));
 
   // Web / Native file picker implementation
-  const handlePickDocument = () => {
+  const handlePickDocument = async () => {
     if (Platform.OS === 'web') {
       const input = document.createElement('input');
       input.type = 'file';
@@ -131,21 +133,69 @@ export default function UploadQuiz() {
       };
       input.click();
     } else {
-      Alert.alert("Document Picker", "Simulating document selection...", [
-        {
-          text: "Select Sample PDF",
-          onPress: () => {
-            setTitle("Cell Biology & Organelles");
-            setSourceText("Mitochondria generate ATP. Ribosomes synthesize proteins. Golgi modifies proteins.");
-            setUploadedFile({
-              name: "Cell_Biology_Notes.pdf",
-              size: "1.8 MB",
-              content: "Cell biology notes and organelle respiration",
+      // Native document picker for Android/iOS
+      try {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: [
+            'application/pdf',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain',
+            'text/markdown',
+          ],
+          copyToCacheDirectory: true,
+        });
+
+        if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+        const asset = result.assets[0];
+        const fileName = asset.name || 'document';
+        const fileSize = asset.size
+          ? (asset.size / (1024 * 1024)).toFixed(1) + ' MB'
+          : 'Unknown';
+        const ext = fileName.split('.').pop()?.toLowerCase() || '';
+
+        let fileText = '';
+        // For plain text files, read content directly
+        if (['txt', 'md'].includes(ext) && asset.uri) {
+          try {
+            fileText = await FileSystem.readAsStringAsync(asset.uri, {
+              encoding: FileSystem.EncodingType.UTF8,
             });
-          },
-        },
-        { text: "Cancel", style: "cancel" },
-      ]);
+          } catch {
+            fileText = '';
+          }
+        }
+
+        const baseName = fileName.replace(/\.[^/.]+$/, '');
+        const derivedTitle = baseName
+          .replace(/[_-]+/g, ' ')
+          .replace(/\b\d+\s*slides\b/gi, '')
+          .trim();
+
+        setTitle(derivedTitle || baseName);
+        setSourceText(fileText);
+        setUploadedSlides(undefined);
+        setRawFile(null);
+        setUploadedFile({
+          name: fileName,
+          size: fileSize,
+          content: fileText || `Document: ${fileName}`,
+        });
+
+        // If no text could be extracted, let the user know they can type/paste content
+        if (!fileText) {
+          Alert.alert(
+            'Document Selected',
+            `"${fileName}" has been attached. For best results with ${ext.toUpperCase()} files on mobile, you can also paste key content into the text area below, or just enter a topic and let AI generate the quiz.`,
+            [{ text: 'OK' }]
+          );
+        }
+      } catch (err: any) {
+        Alert.alert('Error', err.message || 'Failed to pick document.');
+      }
     }
   };
 
