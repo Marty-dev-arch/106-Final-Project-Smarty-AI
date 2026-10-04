@@ -20,8 +20,18 @@ export default function MedalDetails() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "MedalDetails">>();
 
-  const medalName = route.params?.medal?.title || "Gold Scholar";
-  const isUnlocked = route.params?.medal?.unlocked !== false;
+  const medal = route.params?.medal;
+  const medalName = medal?.title || "Gold Scholar";
+  const isUnlocked = medal?.unlocked !== false;
+
+  const unlockedDate =
+    medal?.unlockedDate ||
+    (medal as any)?.earnedDate ||
+    new Date().toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
 
   const handleShare = async () => {
     try {
@@ -113,7 +123,7 @@ export default function MedalDetails() {
             <Text style={styles.heroTitle}>{medalName}</Text>
             <View style={styles.dateRow}>
               <Ionicons name="calendar-outline" size={12} color="#6B7280" style={{ marginRight: 4 }} />
-              <Text style={styles.dateText}>Unlocked on Sep 12, 2026</Text>
+              <Text style={styles.dateText}>{isUnlocked ? `Unlocked on ${unlockedDate}` : 'Locked'}</Text>
             </View>
             <Text style={styles.heroDescription}>
               Awarded for scoring 90% or higher on 10 consecutive advanced quizzes across any subject without hints.

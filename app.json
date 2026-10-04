@@ -5,15 +5,32 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "scheme": "smarty-ai",
     "icon": "./assets/illustrations/smarty_logo.png",
+    "splash": {
+      "image": "./assets/illustrations/smarty_logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#6366F1"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "newArchEnabled": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow Smarty AI to access your photos to set a profile picture.",
+        "NSCameraUsageDescription": "Allow Smarty AI to use your camera to take a profile picture."
+      }
     },
     "android": {
+      "newArchEnabled": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/illustrations/smarty_logo.png",
         "backgroundColor": "#6366F1"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -21,7 +38,15 @@
     },
     "plugins": [
       "expo-font",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Smarty AI to access your photos to set a profile picture.",
+          "cameraPermission": "Allow Smarty AI to use your camera to take a profile picture."
+        }
+      ],
     ]
   }
 }
+

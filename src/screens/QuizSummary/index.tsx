@@ -19,20 +19,24 @@ export default function QuizSummary() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { latestAttempt, activeQuiz, userAnswers } = useQuiz();
 
-  const [expandedExplanation, setExpandedExplanation] = useState<boolean>(true);
+  const [expandedExplanations, setExpandedExplanations] = useState<Record<string, boolean>>({});
 
-  const attempt = latestAttempt || {
-    id: "att_demo",
-    quizId: "quiz_cell_biology",
-    quizTitle: activeQuiz?.title || "Cell Biology Evaluation",
-    score: 3,
-    totalQuestions: 4,
-    percentage: 75,
-    timeSpentSeconds: 45,
-    earnedXP: 200,
-    answers: [],
-    date: "Today",
+  const toggleExplanation = (id: string) => {
+    setExpandedExplanations(prev => ({ ...prev, [id]: !prev[id] }));
   };
+
+  const attempt = latestAttempt;
+
+  if (!attempt) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <TopBar showBack title="Quiz Summary" onBack={() => navigation.navigate("MyQuizzes")} />
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <Text style={{ color: "#6B7280" }}>No attempt data found.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
@@ -55,168 +59,120 @@ export default function QuizSummary() {
             <View>
               <Text style={styles.mainTitle}>Review Answers</Text>
               <Text style={styles.subtitle}>
-                Cell Biology Evaluation • 4 questions
+                {attempt.quizTitle} • {attempt.totalQuestions} questions
               </Text>
             </View>
             <View style={styles.starScoreBadge}>
               <Ionicons name="star" size={14} color="#D97706" style={{ marginRight: 4 }} />
-              <Text style={styles.starScoreText}>3 / 4</Text>
+              <Text style={styles.starScoreText}>{attempt.score} / {attempt.totalQuestions}</Text>
             </View>
           </View>
 
           {/* Top Result Banner Card */}
           <View style={styles.resultBannerCard}>
             <View style={styles.percentageRing}>
-              <Text style={styles.percentageNumber}>75%</Text>
+              <Text style={styles.percentageNumber}>{attempt.percentage}%</Text>
             </View>
             <View style={styles.resultBannerTextCol}>
               <View style={styles.bannerHeadingRow}>
-                <Text style={styles.resultBannerTitle}>Outstanding effort!</Text>
-                <Text style={styles.partyEmoji}> 🎉</Text>
+                <Text style={styles.resultBannerTitle}>{attempt.percentage >= 80 ? "Outstanding effort!" : "Good effort!"}</Text>
+                <Text style={styles.partyEmoji}>{attempt.percentage >= 80 ? " 🎉" : " 💪"}</Text>
               </View>
               <Text style={styles.resultBannerSubtitle}>
-                You mastered core organelles and permeable mechanisms. One concept left
+                {attempt.percentage >= 80 
+                  ? "You mastered the core concepts well." 
+                  : "Review the missed concepts to improve your score next time."}
               </Text>
             </View>
           </View>
 
-          {/* Question 1 (Correct) */}
-          <View style={styles.questionCard}>
-            <View style={styles.questionCardHeader}>
-              <View style={[styles.statusIconCircle, styles.correctIconCircle]}>
-                <Ionicons name="checkmark" size={13} color="#FFFFFF" />
-              </View>
-              <View style={styles.headerTexts}>
-                <Text style={styles.questionNumberText}>QUESTION 1</Text>
-                <Text style={styles.xpText}>+100 XP</Text>
-              </View>
-            </View>
+          {/* Dynamic Questions Rendering */}
+          {activeQuiz?.questions?.map((question, index) => {
+            const answerDetail = attempt.answers.find(a => a.questionId === question.id);
+            const isCorrect = answerDetail?.isCorrect;
+            const isSkipped = answerDetail?.userAnswer === -1 || answerDetail?.userAnswer === undefined;
+            const userAnswerText = isSkipped ? "Skipped" : (typeof answerDetail?.userAnswer === 'number' ? question.options?.[answerDetail.userAnswer] : answerDetail?.userAnswer);
+            const correctAnswerText = typeof question.correctAnswer === 'number' ? question.options?.[question.correctAnswer] : question.correctAnswer;
+            const expanded = !!expandedExplanations[question.id];
 
-            <Text style={styles.questionPrompt}>
-              Which organelle is the powerhouse of the cell?
-            </Text>
+            return (
+              <View key={question.id} style={styles.questionCard}>
+                <View style={styles.questionCardHeader}>
+                  <View style={[
+                    styles.statusIconCircle, 
+                    isCorrect ? styles.correctIconCircle : (isSkipped ? { backgroundColor: '#F59E0B' } : styles.incorrectIconCircle)
+                  ]}>
+                    <Ionicons name={isCorrect ? "checkmark" : (isSkipped ? "remove" : "close")} size={13} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.headerTexts}>
+                    <Text style={[
+                      styles.questionNumberText, 
+                      !isCorrect && !isSkipped ? { color: "#B91C1C" } : (isSkipped ? { color: "#D97706" } : {})
+                    ]}>
+                      QUESTION {index + 1}
+                    </Text>
+                    {isCorrect ? (
+                      <Text style={styles.xpText}>+50 XP</Text>
+                    ) : isSkipped ? (
+                      <Text style={[styles.needsReviewText, { color: "#D97706" }]}>Missed</Text>
+                    ) : (
+                      <Text style={styles.needsReviewText}>Needs Review</Text>
+                    )}
+                  </View>
+                </View>
 
-            <View style={styles.answerRow}>
-              <Text style={styles.answerPrefix}>Your answer: </Text>
-              <Text style={styles.answerBold}>Mitochondria</Text>
-            </View>
-          </View>
-
-          {/* Question 2 (Incorrect with Accordion) */}
-          <View style={styles.questionCard}>
-            <View style={styles.questionCardHeader}>
-              <View style={[styles.statusIconCircle, styles.incorrectIconCircle]}>
-                <Ionicons name="close" size={13} color="#FFFFFF" />
-              </View>
-              <View style={styles.headerTexts}>
-                <Text style={[styles.questionNumberText, { color: "#B91C1C" }]}>
-                  QUESTION 2
+                <Text style={styles.questionPrompt}>
+                  {question.prompt}
                 </Text>
-                <Text style={styles.needsReviewText}>Needs Review</Text>
-              </View>
-            </View>
 
-            <Text style={styles.questionPrompt}>
-              The cell membrane is completely impermeable to all molecules.
-            </Text>
-
-            <View style={styles.answerRow}>
-              <Text style={styles.answerPrefix}>Your answer: </Text>
-              <Text style={[styles.answerBold, { color: "#DC2626" }]}>True</Text>
-            </View>
-
-            <View style={[styles.answerRow, { marginTop: 4 }]}>
-              <Text style={styles.answerPrefix}>Correct answer: </Text>
-              <Text style={[styles.answerBold, { color: "#16A34A" }]}>False</Text>
-            </View>
-
-            {/* Accordion Toggle */}
-            <TouchableOpacity
-              style={styles.accordionHeader}
-              onPress={() => setExpandedExplanation(!expandedExplanation)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.accordionHeaderLeft}>
-                <Ionicons name="bulb-outline" size={15} color="#DC2626" style={{ marginRight: 6 }} />
-                <Text style={styles.accordionHeaderText}>AI Tutor Explanation</Text>
-              </View>
-              <Ionicons
-                name={expandedExplanation ? "chevron-up" : "chevron-down"}
-                size={16}
-                color="#4338CA"
-              />
-            </TouchableOpacity>
-
-            {/* Accordion Content */}
-            {expandedExplanation && (
-              <View style={styles.accordionBody}>
-                <Text style={styles.explanationParagraph}>
-                  The membrane is selectively permeable — small, non-polar molecules pass through fairly easily.
-                </Text>
-                <View style={styles.tipRow}>
-                  <Text style={styles.tipLabel}>Tip: </Text>
-                  <Text style={styles.tipText}>
-                    Water and oxygen use passive diffusion or aquaporins.
+                <View style={styles.answerRow}>
+                  <Text style={styles.answerPrefix}>Your answer: </Text>
+                  <Text style={[
+                    styles.answerBold, 
+                    !isCorrect && !isSkipped ? { color: "#DC2626" } : (isSkipped ? { color: "#D97706" } : {})
+                  ]}>
+                    {userAnswerText}
                   </Text>
                 </View>
+
+                {!isCorrect && (
+                  <View style={[styles.answerRow, { marginTop: 4 }]}>
+                    <Text style={styles.answerPrefix}>Correct answer: </Text>
+                    <Text style={[styles.answerBold, { color: "#16A34A" }]}>{correctAnswerText}</Text>
+                  </View>
+                )}
+
+                {/* Explanation Toggle */}
+                {question.explanation && (
+                  <>
+                    <TouchableOpacity
+                      style={styles.accordionHeader}
+                      onPress={() => toggleExplanation(question.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.accordionHeaderLeft}>
+                        <Ionicons name="bulb-outline" size={15} color={isCorrect ? "#10B981" : "#DC2626"} style={{ marginRight: 6 }} />
+                        <Text style={styles.accordionHeaderText}>AI Tutor Explanation</Text>
+                      </View>
+                      <Ionicons
+                        name={expanded ? "chevron-up" : "chevron-down"}
+                        size={16}
+                        color="#4338CA"
+                      />
+                    </TouchableOpacity>
+
+                    {expanded && (
+                      <View style={styles.accordionBody}>
+                        <Text style={styles.explanationParagraph}>
+                          {question.explanation}
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                )}
               </View>
-            )}
-          </View>
-
-          {/* Question 3 (Correct with Key Takeaway) */}
-          <View style={styles.questionCard}>
-            <View style={styles.questionCardHeader}>
-              <View style={[styles.statusIconCircle, styles.correctIconCircle]}>
-                <Ionicons name="checkmark" size={13} color="#FFFFFF" />
-              </View>
-              <View style={styles.headerTexts}>
-                <Text style={styles.questionNumberText}>QUESTION 3</Text>
-                <Text style={styles.xpText}>+100 XP</Text>
-              </View>
-            </View>
-
-            <Text style={styles.questionPrompt}>
-              Which structure controls what enters and exits the cell?
-            </Text>
-
-            <View style={styles.answerRow}>
-              <Text style={styles.answerPrefix}>Your answer: </Text>
-              <Text style={styles.answerBold}>Cell membrane</Text>
-            </View>
-
-            {/* Key Takeaway Box */}
-            <View style={styles.takeawayBox}>
-              <View style={styles.takeawayHeaderRow}>
-                <Ionicons name="information-circle-outline" size={14} color="#6366F1" style={{ marginRight: 4 }} />
-                <Text style={styles.takeawayLabel}>Key takeaway</Text>
-              </View>
-              <Text style={styles.takeawayText}>
-                Also known as the plasma membrane, its lipid bilayer maintains cellular homeostasis by selectively gating nutrients and waste.
-              </Text>
-            </View>
-          </View>
-
-          {/* Question 4 (Correct) */}
-          <View style={styles.questionCard}>
-            <View style={styles.questionCardHeader}>
-              <View style={[styles.statusIconCircle, styles.correctIconCircle]}>
-                <Ionicons name="checkmark" size={13} color="#FFFFFF" />
-              </View>
-              <View style={styles.headerTexts}>
-                <Text style={styles.questionNumberText}>QUESTION 4</Text>
-                <Text style={styles.xpText}>+100 XP</Text>
-              </View>
-            </View>
-
-            <Text style={styles.questionPrompt}>
-              Name the site of protein synthesis in a cell.
-            </Text>
-
-            <View style={styles.answerRow}>
-              <Text style={styles.answerPrefix}>Your answer: </Text>
-              <Text style={styles.answerBold}>Ribosome</Text>
-            </View>
-          </View>
+            );
+          })}
 
           {/* Bottom Action Buttons */}
           <TouchableOpacity

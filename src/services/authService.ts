@@ -27,8 +27,9 @@ import { getLocalDateString, evaluateStreak, recordDailyActivityStreak } from '.
  */
 function parseAuthError(err: any): string {
   if (!err) return 'An unexpected authentication error occurred.';
+  if (typeof err === 'string') return err;
   const code = err.code || '';
-  
+
   switch (code) {
     case 'auth/wrong-password':
     case 'auth/invalid-credential':
@@ -129,8 +130,8 @@ export const authService = {
             updatedAt: new Date().toISOString(),
           },
           { merge: true }
-        ).catch(() => {});
-      } catch {}
+        ).catch(() => { });
+      } catch { }
     }
 
     await storageService.saveUser(profile);
@@ -141,7 +142,7 @@ export const authService = {
    * Sign in with Google using Firebase Auth.
    */
   async signInWithGoogle(): Promise<UserProfile> {
-    if (isFirebaseInitialized && auth) {
+    if (isFirebaseInitialized && auth && typeof signInWithPopup === 'function') {
       try {
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
@@ -209,7 +210,7 @@ export const authService = {
       try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
         const fbUser = userCredential.user;
-        
+
         if (displayName) {
           await updateProfile(fbUser, { displayName });
         }
@@ -240,7 +241,7 @@ export const authService = {
             console.warn('Firestore user init warning:', e);
           }
         }
-        
+
         await storageService.saveUser(initialProfile);
         return initialProfile;
       } catch (err: any) {
@@ -382,7 +383,7 @@ export const authService = {
     if (isFirebaseInitialized && auth) {
       return fbOnAuthStateChanged(auth, callback);
     }
-    return () => {};
+    return () => { };
   },
 
   /**
@@ -433,7 +434,7 @@ export const authService = {
         // 4. Update Firestore user document
         if (db) {
           const userDocRef = doc(db, 'users', fbUser.uid);
-          await setDoc(
+          setDoc(
             userDocRef,
             {
               displayName: updatedName,
@@ -442,7 +443,7 @@ export const authService = {
               updatedAt: new Date().toISOString(),
             },
             { merge: true }
-          );
+          ).catch((e) => console.warn('Firestore user update failed:', e));
         }
       } catch (err: any) {
         throw new Error(parseAuthError(err));

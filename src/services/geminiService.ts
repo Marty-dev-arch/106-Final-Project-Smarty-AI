@@ -55,28 +55,37 @@ function validateQuestions(rawQuestions: any[], fallbackCategory: string): Quest
     const q = rawQuestions[i];
     if (!q || typeof q.prompt !== 'string' || q.prompt.trim().length < 5) continue;
 
+    const type: QuestionType = q.type === 'true_false' ? 'true_false' : q.type === 'enumeration' ? 'enumeration' : 'multiple_choice';
+
     let options: string[] = [];
-    if (Array.isArray(q.options) && q.options.length >= 2) {
+    if (Array.isArray(q.options) && q.options.length > 0) {
       options = q.options.map((o: any) => String(o || '').trim()).filter((o: string) => o.length > 0);
     }
 
-    if (q.type === 'true_false' || (!options.length && q.type === 'true_false')) {
+    if (type === 'true_false') {
       options = ['True', 'False'];
     }
 
-    if (options.length < 2) continue;
+    if (type !== 'enumeration' && options.length < 2) continue;
 
-    let correctIndex = typeof q.correctAnswer === 'number' ? q.correctAnswer : 0;
-    if (correctIndex < 0 || correctIndex >= options.length) {
-      correctIndex = 0;
+    let correctIndexOrString: string | number = 0;
+    if (type === 'enumeration') {
+      correctIndexOrString = String(q.correctAnswer || '').trim();
+      if (!correctIndexOrString) continue;
+    } else {
+      let correctIndex = typeof q.correctAnswer === 'number' ? q.correctAnswer : 0;
+      if (correctIndex < 0 || correctIndex >= options.length) {
+        correctIndex = 0;
+      }
+      correctIndexOrString = correctIndex;
     }
 
     cleanQuestions.push({
       id: `q_gemini_${Date.now()}_${i + 1}`,
-      type: q.type === 'true_false' ? 'true_false' : 'multiple_choice',
+      type: type,
       prompt: q.prompt.trim(),
       options,
-      correctAnswer: correctIndex,
+      correctAnswer: correctIndexOrString,
       explanation: typeof q.explanation === 'string' ? q.explanation.trim() : undefined,
       category: typeof q.category === 'string' && q.category.trim() ? q.category.trim() : fallbackCategory,
     });
@@ -119,9 +128,10 @@ REQUIREMENTS:
 1. Every question prompt must be a complete, well-formed question matching the requested Target Difficulty.
 2. For multiple_choice questions: provide exactly 4 distinct options.
 3. For true_false questions: options MUST be ["True", "False"].
-4. correctAnswer must be the 0-based index of the correct option (0, 1, 2, or 3).
-5. Provide a clear 1-2 sentence explanation explaining why the correct answer is right.
-6. Return ONLY a valid JSON object matching this schema (no markdown fences, no extra text):
+4. For enumeration questions (fill-in-the-blanks): leave options as an empty array [] and set correctAnswer to the exact string answer.
+5. correctAnswer must be the 0-based index of the correct option (0, 1, 2, or 3) for multiple_choice/true_false, OR the exact string answer for enumeration.
+6. Provide a clear 1-2 sentence explanation explaining why the correct answer is right.
+7. Return ONLY a valid JSON object matching this schema (no markdown fences, no extra text):
 
 {
   "title": "${quizTitle}",

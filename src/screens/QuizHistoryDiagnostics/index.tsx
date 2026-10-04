@@ -40,84 +40,42 @@ interface AttemptRecord {
   medalBanner?: string;
 }
 
-const ATTEMPTS_DATA: AttemptRecord[] = [
-  {
-    id: "att_1",
-    category: "Biology",
-    categoryPillBg: "#EEF2FF",
-    categoryPillColor: "#4338CA",
-    subCategory: "Cell Biology Ch. 4",
-    title: "Membrane Structure & Transport",
-    timeString: "Today, 2:15 PM",
-    duration: "6m 42s",
-    scorePercent: 87,
-    scoreFraction: "13 / 15 correct",
-    correctCount: 13,
-    missedCount: 2,
-    isPassed: true,
-    xp: 120,
-    isMastered: true,
-  },
-  {
-    id: "att_2",
-    category: "Chemistry",
-    categoryPillBg: "#FEE2E2",
-    categoryPillColor: "#DC2626",
-    subCategory: "Organic Chem • Ch. 8",
-    title: "Reaction Mechanisms II",
-    timeString: "Yesterday, 4:30 PM",
-    duration: "9m 10s",
-    scorePercent: 58,
-    scoreFraction: "7 / 12 correct",
-    correctCount: 7,
-    missedCount: 5,
-    isPassed: false,
-    weakSpotAlert: {
-      topic: "Weak Spot: Nucleophilic Attack",
-      mistakeCount: 5,
-    },
-  },
-  {
-    id: "att_3",
-    category: "History",
-    categoryPillBg: "#FEF3C7",
-    categoryPillColor: "#92400E",
-    subCategory: "Modern Era",
-    title: "World War II Causes & Alliances",
-    timeString: "Sep 12, 10:00 AM",
-    duration: "8m 05s",
-    scorePercent: 73,
-    scoreFraction: "11 / 15 correct",
-    correctCount: 11,
-    missedCount: 4,
-    isPassed: false,
-  },
-  {
-    id: "att_4",
-    category: "Language",
-    categoryPillBg: "#EDE9FE",
-    categoryPillColor: "#6D28D9",
-    subCategory: "Bisaya Vocabulary",
-    title: "Daily Phrases & Greetings Unit 1",
-    timeString: "Sep 10, 8:20 PM",
-    duration: "4m 18s",
-    scorePercent: 100,
-    scoreFraction: "10 / 10 perfect",
-    correctCount: 10,
-    missedCount: 0,
-    isPassed: true,
-    medalBanner: "Perfect Score Medal Earned • Streak Maintained",
-  },
-];
+// Removed hardcoded ATTEMPTS_DATA
 
 export default function QuizHistoryDiagnostics() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { startMistakePractice } = useQuiz();
+  const { startMistakePractice, attempts, quizzes } = useQuiz();
 
   const [segmentTab, setSegmentTab] = useState<"history" | "weakTopics">("history");
   const [filterType, setFilterType] = useState<"all" | "passed" | "needsReview">("all");
 
-  const filteredAttempts = ATTEMPTS_DATA.filter((item) => {
+  const formattedAttempts: AttemptRecord[] = (attempts || []).map(att => {
+    const min = Math.floor(att.timeSpentSeconds / 60);
+    const sec = Math.round(att.timeSpentSeconds % 60);
+    const missed = att.totalQuestions - att.score;
+    const passed = att.percentage >= 80;
+    
+    return {
+      id: att.id,
+      category: "General",
+      categoryPillBg: "#EEF2FF",
+      categoryPillColor: "#4338CA",
+      subCategory: "Review",
+      title: att.quizTitle,
+      timeString: att.date,
+      duration: `${min}m ${sec}s`,
+      scorePercent: att.percentage,
+      scoreFraction: `${att.score} / ${att.totalQuestions} correct`,
+      correctCount: att.score,
+      missedCount: missed,
+      isPassed: passed,
+      xp: att.earnedXP,
+      isMastered: att.percentage === 100,
+      weakSpotAlert: missed > 0 ? { topic: "Review missed concepts", mistakeCount: missed } : undefined,
+    };
+  });
+
+  const filteredAttempts = formattedAttempts.filter((item) => {
     if (filterType === "passed") return item.scorePercent >= 80;
     if (filterType === "needsReview") return item.scorePercent < 80;
     return true;
@@ -303,7 +261,7 @@ export default function QuizHistoryDiagnostics() {
           {/* Recent Attempts Section */}
           <View style={styles.recentAttemptsHeader}>
             <Text style={styles.recentAttemptsTitle}>Recent Attempts</Text>
-            <Text style={styles.recentAttemptsCount}>24 completed</Text>
+            <Text style={styles.recentAttemptsCount}>{attempts?.length || 0} completed</Text>
           </View>
 
           {/* Filter Chips */}
