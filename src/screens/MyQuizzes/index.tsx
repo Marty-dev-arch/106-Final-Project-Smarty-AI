@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import { Quiz } from "../../types/quiz";
 import { RootStackParamList } from "../../types/navigation";
 import { useQuiz } from "../../context/QuizContext";
 import { useAuth } from "../../context/AuthContext";
@@ -22,6 +23,7 @@ import { useTheme } from "../../context/ThemeContext";
 import TopBar from "../../components/common/TopBar";
 import BottomNav from "../../components/common/BottomNav";
 import TabSlideWrapper from "../../components/common/TabSlideWrapper";
+import ExportModal from "../../components/common/ExportModal";
 import { MyQuizzesSkeleton } from "../../components/common/SkeletonLoader";
 import { triggerHaptic } from "../../utils/haptics";
 import THEME from "../../config/theme";
@@ -35,6 +37,7 @@ export default function MyQuizzes() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [quizToExport, setQuizToExport] = useState<Quiz | null>(null);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -76,11 +79,18 @@ export default function MyQuizzes() {
         if (!matchesTitle && !matchesCat) return false;
       }
       // Tab filter
+      const isCompleted = (q.bestScore !== undefined && q.bestScore !== null) || (q.timesTaken !== undefined && q.timesTaken > 0);
+      const isInProgress = !isCompleted && ((q.savedProgressIndex !== undefined && q.savedProgressIndex > 0) || (q.savedUserAnswers && Object.keys(q.savedUserAnswers).length > 0));
+      const isUnstarted = !isCompleted && !isInProgress;
+
       if (filter === "completed") {
-        return q.bestScore !== undefined && q.bestScore > 0;
+        return isCompleted;
       }
-      if (filter === "inProgress" || filter === "unstarted") {
-        return !q.bestScore;
+      if (filter === "inProgress") {
+        return isInProgress;
+      }
+      if (filter === "unstarted") {
+        return isUnstarted;
       }
       return true;
     });
@@ -311,7 +321,19 @@ export default function MyQuizzes() {
                       {hasScore ? "Score Mastered" : "Tap to start quiz"}
                     </Text>
                   </View>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <TouchableOpacity
+                      onPress={(e: any) => {
+                        e?.stopPropagation?.();
+                        triggerHaptic.selection();
+                        setQuizToExport(quiz);
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      style={styles.actionIconBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="download-outline" size={17} color={colors.primary} />
+                    </TouchableOpacity>
                     <TouchableOpacity
                       onPress={(e: any) => {
                         e?.stopPropagation?.();
@@ -439,6 +461,15 @@ export default function MyQuizzes() {
           </View>
         </View>
       </Modal>
+
+      {/* ─── Quiz Export Modal ─── */}
+      {quizToExport && (
+        <ExportModal
+          visible={quizToExport !== null}
+          onClose={() => setQuizToExport(null)}
+          quiz={quizToExport}
+        />
+      )}
     </View>
   );
 }
@@ -872,5 +903,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#111827",
+  },
+  actionIconBtn: {
+    padding: 6,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

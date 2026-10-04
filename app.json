@@ -45,8 +45,8 @@
           "photosPermission": "Allow Smarty AI to access your photos to set a profile picture.",
           "cameraPermission": "Allow Smarty AI to use your camera to take a profile picture."
         }
-      ]
+      ],
+      "expo-sharing"
     ]
   }
 }
-

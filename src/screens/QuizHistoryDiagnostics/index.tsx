@@ -397,7 +397,7 @@ export default function QuizHistoryDiagnostics() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.reviewPillButton}
-                      onPress={() => navigation.navigate("QuizSummary")}
+                      onPress={() => navigation.navigate("QuizSummary", { attemptId: item.id })}
                       activeOpacity={0.8}
                     >
                       <Text style={styles.reviewPillText}>Review</Text>
@@ -406,7 +406,7 @@ export default function QuizHistoryDiagnostics() {
                 ) : (
                   <TouchableOpacity
                     style={styles.reviewAnswersLink}
-                    onPress={() => navigation.navigate("QuizSummary")}
+                    onPress={() => navigation.navigate("QuizSummary", { attemptId: item.id })}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.reviewAnswersLinkText}>

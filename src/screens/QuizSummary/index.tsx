@@ -7,25 +7,47 @@ import {
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { RootStackParamList } from "../../types/navigation";
 import { useQuiz } from "../../context/QuizContext";
 import TopBar from "../../components/common/TopBar";
+import ExportModal from "../../components/common/ExportModal";
+import { isReadableText, sanitizeTitle } from "../../utils/documentExtractor";
 import THEME from "../../config/theme";
 
 export default function QuizSummary() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { latestAttempt, activeQuiz, userAnswers } = useQuiz();
+  const route = useRoute<RouteProp<RootStackParamList, "QuizSummary">>();
+  const { latestAttempt, attempts, quizzes, activeQuiz, userAnswers } = useQuiz();
 
   const [expandedExplanations, setExpandedExplanations] = useState<Record<string, boolean>>({});
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const toggleExplanation = (id: string) => {
     setExpandedExplanations(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const attempt = latestAttempt;
+  const attempt = (route.params?.attemptId ? attempts?.find(a => a.id === route.params?.attemptId) : null) || latestAttempt || (attempts && attempts.length > 0 ? attempts[0] : null);
+  const targetQuiz = attempt ? (quizzes.find(q => q.id === attempt.quizId) || (activeQuiz?.id === attempt.quizId ? activeQuiz : activeQuiz)) : activeQuiz;
+
+  const displayTitle = sanitizeTitle(
+    attempt?.quizTitle,
+    targetQuiz?.sourceDocName || targetQuiz?.title,
+    "Study Quiz"
+  );
+
+  const questionsList = targetQuiz?.questions && targetQuiz.questions.length > 0
+    ? targetQuiz.questions
+    : attempt?.answers?.map((ans, idx) => ({
+        id: ans.questionId,
+        type: (typeof ans.userAnswer === "string" ? "enumeration" : "multiple_choice") as any,
+        prompt: `Question ${idx + 1}`,
+        options: [],
+        correctAnswer: ans.isCorrect ? ans.userAnswer : "Correct concept",
+        explanation: "Review this topic in your study notes.",
+      })) || [];
 
   if (!attempt) {
     return (
@@ -59,7 +81,7 @@ export default function QuizSummary() {
             <View>
               <Text style={styles.mainTitle}>Review Answers</Text>
               <Text style={styles.subtitle}>
-                {attempt.quizTitle} • {attempt.totalQuestions} questions
+                {displayTitle} • {attempt.totalQuestions} questions
               </Text>
             </View>
             <View style={styles.starScoreBadge}>
@@ -87,16 +109,47 @@ export default function QuizSummary() {
           </View>
 
           {/* Dynamic Questions Rendering */}
-          {activeQuiz?.questions?.map((question, index) => {
-            const answerDetail = attempt.answers.find(a => a.questionId === question.id);
-            const isCorrect = answerDetail?.isCorrect;
-            const isSkipped = answerDetail?.userAnswer === -1 || answerDetail?.userAnswer === undefined;
-            const userAnswerText = isSkipped ? "Skipped" : (typeof answerDetail?.userAnswer === 'number' ? question.options?.[answerDetail.userAnswer] : answerDetail?.userAnswer);
-            const correctAnswerText = typeof question.correctAnswer === 'number' ? question.options?.[question.correctAnswer] : question.correctAnswer;
+          {questionsList.map((question, index) => {
+            const answerDetail = attempt.answers.find(a => a.questionId === question.id) || attempt.answers[index];
+            const isCorrect = answerDetail !== undefined 
+              ? Boolean(answerDetail.isCorrect) 
+              : (
+                typeof question.correctAnswer === "number"
+                  ? userAnswers[question.id] === question.correctAnswer
+                  : String(userAnswers[question.id] || "").trim().toLowerCase() === String(question.correctAnswer || "").trim().toLowerCase()
+              );
+
+            const rawUserAns = answerDetail?.userAnswer !== undefined ? answerDetail.userAnswer : userAnswers[question.id];
+            const isSkipped = rawUserAns === -1 || rawUserAns === undefined || rawUserAns === null || rawUserAns === "";
+
+            let userAnswerText = "Skipped";
+            if (!isSkipped) {
+              if (typeof rawUserAns === "number") {
+                if (question.options && question.options[rawUserAns] !== undefined) {
+                  userAnswerText = question.options[rawUserAns];
+                } else {
+                  userAnswerText = `Option ${rawUserAns + 1}`;
+                }
+              } else {
+                userAnswerText = String(rawUserAns);
+              }
+            }
+
+            let correctAnswerText = "";
+            if (typeof question.correctAnswer === "number") {
+              if (question.options && question.options[question.correctAnswer] !== undefined) {
+                correctAnswerText = question.options[question.correctAnswer];
+              } else {
+                correctAnswerText = `Option ${question.correctAnswer + 1}`;
+              }
+            } else {
+              correctAnswerText = String(question.correctAnswer ?? "");
+            }
+
             const expanded = !!expandedExplanations[question.id];
 
             return (
-              <View key={question.id} style={styles.questionCard}>
+              <View key={question.id || `q_${index}`} style={styles.questionCard}>
                 <View style={styles.questionCardHeader}>
                   <View style={[
                     styles.statusIconCircle, 
@@ -125,22 +178,24 @@ export default function QuizSummary() {
                   {question.prompt}
                 </Text>
 
-                <View style={styles.answerRow}>
-                  <Text style={styles.answerPrefix}>Your answer: </Text>
-                  <Text style={[
-                    styles.answerBold, 
-                    !isCorrect && !isSkipped ? { color: "#DC2626" } : (isSkipped ? { color: "#D97706" } : {})
-                  ]}>
-                    {userAnswerText}
+                <View style={styles.answerBlock}>
+                  <Text style={styles.answerLine}>
+                    <Text style={styles.answerPrefix}>Your answer:  </Text>
+                    <Text style={[
+                      styles.answerBold, 
+                      !isCorrect && !isSkipped ? { color: "#DC2626" } : (isSkipped ? { color: "#D97706" } : { color: "#111827" })
+                    ]}>
+                      {userAnswerText}
+                    </Text>
                   </Text>
-                </View>
 
-                {!isCorrect && (
-                  <View style={[styles.answerRow, { marginTop: 4 }]}>
-                    <Text style={styles.answerPrefix}>Correct answer: </Text>
-                    <Text style={[styles.answerBold, { color: "#16A34A" }]}>{correctAnswerText}</Text>
-                  </View>
-                )}
+                  {!isCorrect && (
+                    <Text style={[styles.answerLine, { marginTop: 6 }]}>
+                      <Text style={styles.answerPrefix}>Correct answer:  </Text>
+                      <Text style={[styles.answerBold, { color: "#16A34A" }]}>{correctAnswerText}</Text>
+                    </Text>
+                  )}
+                </View>
 
                 {/* Explanation Toggle */}
                 {question.explanation && (
@@ -191,8 +246,28 @@ export default function QuizSummary() {
             <Ionicons name="refresh-outline" size={16} color="#5B41E8" style={{ marginRight: 6 }} />
             <Text style={styles.secondaryButtonText}>Retry Missed Questions</Text>
           </TouchableOpacity>
+
+          {targetQuiz && (
+            <TouchableOpacity
+              style={styles.exportOutlineBtn}
+              onPress={() => setShowExportModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="download-outline" size={16} color="#4F46E5" style={{ marginRight: 6 }} />
+              <Text style={styles.exportOutlineBtnText}>Export Study Guide (PDF, DOCX)</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
+
+      {targetQuiz && (
+        <ExportModal
+          visible={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          quiz={targetQuiz}
+          attempt={attempt}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -349,19 +424,23 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     marginBottom: 10,
   },
-  answerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 2,
+  answerBlock: {
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  answerLine: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#111827",
   },
   answerPrefix: {
     fontSize: 13,
+    fontWeight: "600",
     color: "#6B7280",
   },
   answerBold: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
-    color: "#111827",
   },
   accordionHeader: {
     flexDirection: "row",
@@ -458,6 +537,23 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: "#5B41E8",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  exportOutlineBtn: {
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#E0E7FF",
+    backgroundColor: "#F5F3FF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  exportOutlineBtnText: {
+    color: "#4F46E5",
     fontSize: 14,
     fontWeight: "700",
   },

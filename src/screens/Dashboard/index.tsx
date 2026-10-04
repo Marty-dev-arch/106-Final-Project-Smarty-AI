@@ -63,6 +63,12 @@ export default function Dashboard() {
 
   const quizzesTaken = (user?.quizzesTaken ?? 0) === 0 || quizzes.length === 0 ? 0 : user?.quizzesTaken ?? 0;
   const avgScore = quizzesTaken === 0 ? 0 : user?.avgScore ?? 0;
+  const greeting = (() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 18) return "Good Afternoon";
+    return "Good Evening";
+  })();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -87,7 +93,7 @@ export default function Dashboard() {
           <>
             {/* Greeting Header */}
             <Text style={[styles.greetingText, { color: colors.text }]}>
-              Good Morning, {user?.displayName?.split(" ")[0] || "Marty"}!
+              {greeting}, {user?.displayName?.split(" ")[0] || "Marty"}!
             </Text>
 
             {/* Companion Speech Bubble Card with Animated Blinking Mascot & Typing Text */}

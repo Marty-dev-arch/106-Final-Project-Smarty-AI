@@ -1,6 +1,6 @@
 import { Quiz, Question, Difficulty, QuestionType } from '../types/quiz';
 import { storageService } from './storageService';
-import { SlideBlock } from '../utils/documentExtractor';
+import { SlideBlock, isReadableText } from '../utils/documentExtractor';
 import { generateQuizWithGemini } from './aiQuizGenerator';
 
 function shuffleArr<T>(arr: T[]): T[] {
@@ -38,29 +38,33 @@ const isRealApiKey = (key?: string): boolean => {
   );
 };
 
-
-function deriveQuizTitle(text: string, slides?: SlideBlock[]): string {
+function deriveQuizTitle(text: string, slides?: SlideBlock[], fallbackName?: string): string {
+  if (fallbackName && fallbackName.trim().length > 2) {
+    const cleanBase = fallbackName.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ').trim();
+    if (isReadableText(cleanBase)) return cleanBase;
+  }
   if (slides && slides.length > 0) {
-    const firstTitle = slides[0].title?.trim();
-    if (firstTitle && firstTitle.length > 3 && firstTitle.length < 80) {
-      return firstTitle.replace(/^#+\s*/, '');
+    for (const s of slides.slice(0, 3)) {
+      const firstTitle = s.title?.trim();
+      if (firstTitle && isReadableText(firstTitle) && firstTitle.length > 3 && firstTitle.length < 80) {
+        return firstTitle.replace(/^#+\s*/, '').replace(/[_-]+/g, ' ').trim();
+      }
     }
   }
-  const firstLine = text.trim().split('\n')[0]?.trim();
-  if (firstLine && firstLine.length > 3 && firstLine.length < 70) {
-    return firstLine.replace(/^#+\s*/, '');
+  const lines = text.trim().split('\n');
+  for (const l of lines.slice(0, 5)) {
+    const firstLine = l.trim().replace(/^#+\s*/, '');
+    if (firstLine && isReadableText(firstLine) && firstLine.length > 3 && firstLine.length < 70) {
+      return firstLine.replace(/[_-]+/g, ' ').trim();
+    }
   }
   return 'Study Quiz';
 }
 
-// Category is determined by Gemini AI based on actual document content.
-
-
-
 export const geminiService = {
   async generateQuiz(params: GenerateQuizParams): Promise<Quiz> {
     const { topicOrDocumentText, slides, count, difficulty, questionTypes, title, sourceDocName, sourceDocUrl, pdfBase64 } = params;
-    const quizTitle = title || deriveQuizTitle(topicOrDocumentText, slides);
+    const quizTitle = title && isReadableText(title) ? title : deriveQuizTitle(topicOrDocumentText, slides, sourceDocName);
 
     // ── Build content from slides (actual per-slide text) or raw text ─────────
     let content = topicOrDocumentText.trim();

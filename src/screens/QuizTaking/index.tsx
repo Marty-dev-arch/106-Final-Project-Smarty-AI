@@ -66,6 +66,7 @@ export default function QuizTaking() {
   // ─── Customization / Edit Mode State ─────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
   const [editPrompt, setEditPrompt] = useState("");
+  const [editEnumerationAnswer, setEditEnumerationAnswer] = useState("");
   const [editOptions, setEditOptions] = useState<string[]>([]);
   const [editCorrectIndex, setEditCorrectIndex] = useState<number>(0);
   const [editExplanation, setEditExplanation] = useState("");
@@ -116,6 +117,7 @@ export default function QuizTaking() {
   useEffect(() => {
     if (currentQ) {
       setEditPrompt(currentQ.prompt || "");
+      setEditEnumerationAnswer(typeof currentQ.correctAnswer === "string" ? currentQ.correctAnswer : "");
       setEditOptions(
         currentQ.options && currentQ.options.length > 0
           ? [...currentQ.options]
@@ -144,6 +146,33 @@ export default function QuizTaking() {
       alert("Please enter a question prompt.");
       return;
     }
+
+    if (currentQ.type === "enumeration") {
+      if (!editEnumerationAnswer.trim()) {
+        triggerHaptic.error();
+        alert("Please enter the expected text answer for this enumeration question.");
+        return;
+      }
+      setSavingEdit(true);
+      try {
+        await updateCurrentQuestion({
+          ...currentQ,
+          prompt: editPrompt.trim(),
+          options: [],
+          correctAnswer: editEnumerationAnswer.trim(),
+          explanation: editExplanation.trim(),
+        });
+        triggerHaptic.success();
+        setIsEditing(false);
+      } catch (e) {
+        triggerHaptic.error();
+        alert("Failed to save changes.");
+      } finally {
+        setSavingEdit(false);
+      }
+      return;
+    }
+
     const filtered = editOptions.map((o) => o.trim()).filter((o) => o.length > 0);
     if (filtered.length < 2) {
       triggerHaptic.error();
@@ -420,92 +449,110 @@ export default function QuizTaking() {
               />
             </View>
 
-            {/* Answer Options Editor */}
-            <View style={styles.optionsHeaderRow}>
-              <Text style={styles.fieldLabel}>ANSWER CHOICES</Text>
-              <Text style={styles.fieldSubHint}>Tap circle to set correct answer</Text>
-            </View>
+            {/* Answer Options Editor or Enumeration Key */}
+            {currentQ.type === "enumeration" ? (
+              <View style={{ marginTop: 14 }}>
+                <Text style={styles.fieldLabel}>EXPECTED TEXT ANSWER</Text>
+                <Text style={styles.fieldSubHint}>Enter the exact correct word or phrase</Text>
+                <View style={[styles.inputWrap, { marginTop: 6 }]}>
+                  <TextInput
+                    style={styles.promptTextInput}
+                    placeholder="Enter expected answer..."
+                    placeholderTextColor="#94A3B8"
+                    value={editEnumerationAnswer}
+                    onChangeText={setEditEnumerationAnswer}
+                  />
+                </View>
+              </View>
+            ) : (
+              <>
+                <View style={styles.optionsHeaderRow}>
+                  <Text style={styles.fieldLabel}>ANSWER CHOICES</Text>
+                  <Text style={styles.fieldSubHint}>Tap circle to set correct answer</Text>
+                </View>
 
-            <View style={styles.editOptionsList}>
-              {editOptions.map((opt, idx) => {
-                const isCorrect = editCorrectIndex === idx;
-                const letter = OPTION_LETTERS[idx] || `${idx + 1}`;
-                return (
-                  <View
-                    key={idx}
-                    style={[styles.editOptionRow, isCorrect && styles.editOptionRowCorrect]}
-                  >
-                    {/* Letter tag */}
-                    <View
-                      style={[
-                        styles.editOptionLetterBadge,
-                        isCorrect && styles.editOptionLetterBadgeCorrect,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.editOptionLetterText,
-                          isCorrect && styles.editOptionLetterTextCorrect,
-                        ]}
+                <View style={styles.editOptionsList}>
+                  {editOptions.map((opt, idx) => {
+                    const isCorrect = editCorrectIndex === idx;
+                    const letter = OPTION_LETTERS[idx] || `${idx + 1}`;
+                    return (
+                      <View
+                        key={idx}
+                        style={[styles.editOptionRow, isCorrect && styles.editOptionRowCorrect]}
                       >
-                        {letter}
-                      </Text>
-                    </View>
-
-                    {/* Option Text Input */}
-                    <TextInput
-                      style={styles.editOptionTextInput}
-                      placeholder={`Choice ${letter}...`}
-                      placeholderTextColor="#94A3B8"
-                      value={opt}
-                      onChangeText={(t) => handleOptionTextChange(t, idx)}
-                    />
-
-                    {/* Right Controls: Correct Selector + Delete Button */}
-                    <View style={styles.optionRightGroup}>
-                      <TouchableOpacity
-                        style={styles.correctCheckBtn}
-                        onPress={() => {
-                          triggerHaptic.selection();
-                          setEditCorrectIndex(idx);
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        {isCorrect ? (
-                          <View style={styles.correctBadgePill}>
-                            <Ionicons name="checkmark-circle" size={14} color="#10B981" />
-                            <Text style={styles.correctBadgeText}>Correct</Text>
-                          </View>
-                        ) : (
-                          <View style={styles.uncheckCircle} />
-                        )}
-                      </TouchableOpacity>
-
-                      {editOptions.length > 2 && (
-                        <TouchableOpacity
-                          onPress={() => handleRemoveOptionField(idx)}
-                          style={styles.removeOptBtn}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        {/* Letter tag */}
+                        <View
+                          style={[
+                            styles.editOptionLetterBadge,
+                            isCorrect && styles.editOptionLetterBadgeCorrect,
+                          ]}
                         >
-                          <Ionicons name="close" size={16} color="#94A3B8" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
+                          <Text
+                            style={[
+                              styles.editOptionLetterText,
+                              isCorrect && styles.editOptionLetterTextCorrect,
+                            ]}
+                          >
+                            {letter}
+                          </Text>
+                        </View>
 
-            {/* Add Option Choice Button */}
-            {editOptions.length < 6 && (
-              <TouchableOpacity
-                style={styles.addOptionBtn}
-                onPress={handleAddOptionField}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="add-circle-outline" size={16} color="#6D44F2" style={{ marginRight: 6 }} />
-                <Text style={styles.addOptionBtnText}>+ Add Another Choice</Text>
-              </TouchableOpacity>
+                        {/* Option Text Input */}
+                        <TextInput
+                          style={styles.editOptionTextInput}
+                          placeholder={`Choice ${letter}...`}
+                          placeholderTextColor="#94A3B8"
+                          value={opt}
+                          onChangeText={(t) => handleOptionTextChange(t, idx)}
+                        />
+
+                        {/* Right Controls: Correct Selector + Delete Button */}
+                        <View style={styles.optionRightGroup}>
+                          <TouchableOpacity
+                            style={styles.correctCheckBtn}
+                            onPress={() => {
+                              triggerHaptic.selection();
+                              setEditCorrectIndex(idx);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            {isCorrect ? (
+                              <View style={styles.correctBadgePill}>
+                                <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                                <Text style={styles.correctBadgeText}>Correct</Text>
+                              </View>
+                            ) : (
+                              <View style={styles.uncheckCircle} />
+                            )}
+                          </TouchableOpacity>
+
+                          {editOptions.length > 2 && (
+                            <TouchableOpacity
+                              onPress={() => handleRemoveOptionField(idx)}
+                              style={styles.removeOptBtn}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <Ionicons name="close" size={16} color="#94A3B8" />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+
+                {/* Add Option Choice Button */}
+                {editOptions.length < 6 && (
+                  <TouchableOpacity
+                    style={styles.addOptionBtn}
+                    onPress={handleAddOptionField}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name="add-circle-outline" size={16} color="#6D44F2" style={{ marginRight: 6 }} />
+                    <Text style={styles.addOptionBtnText}>+ Add Another Choice</Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
 
             {/* Concept Key / Explanation Editor */}
@@ -1071,7 +1118,7 @@ export default function QuizTaking() {
               </View>
               <View style={styles.menuOptionTextCol}>
                 <Text style={styles.menuOptionTitle}>Export Quiz</Text>
-                <Text style={styles.menuOptionSub}>Download as PDF, DOCX, or PPTX</Text>
+                <Text style={styles.menuOptionSub}>Download as PDF or DOCX</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
             </TouchableOpacity>

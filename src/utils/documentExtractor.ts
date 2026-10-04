@@ -71,13 +71,49 @@ function cleanXml(raw: string): string {
 const JUNK_RE =
   /^(click to edit|slide \d+|title|footer|header|confidential|www\.|http|©|\d{4}(-\d{4})?|all rights reserved|powered by|template)$/i;
 
+export function isReadableText(s?: string): boolean {
+  if (!s || typeof s !== 'string') return false;
+  const trimmed = s.trim();
+  if (trimmed.length < 2 || trimmed.length > 350) return false;
+  if (/^\d+$/.test(trimmed) || JUNK_RE.test(trimmed)) return false;
+
+  // 1. Strict check for binary/mojibake characters (e.g. ô, À, Æ, â, Û, å, ç, ý, î, ú, Õ, ê, Ë, ð, «, ã, Î, µ, ·, », ¥)
+  const nonAsciiMatches = trimmed.match(/[^\x20-\x7E]/g) || [];
+  if (nonAsciiMatches.length > 1 || (nonAsciiMatches.length / trimmed.length) > 0.04) {
+    return false;
+  }
+
+  // 2. Reject symbol-heavy or code syntax strings
+  if (/^[\\{}[\]|:=?$%^&*~`<>]+/.test(trimmed)) {
+    return false;
+  }
+
+  // 3. Must contain at least one valid word with 2+ letters
+  if (!/[a-zA-Z]{2,}/.test(trimmed)) {
+    return false;
+  }
+
+  // 4. Must be mostly alphanumeric + standard punctuation
+  const cleanChars = (trimmed.match(/[a-zA-Z0-9\s.,!?:;'"()/\-_=+%@&#$[\]]/g) || []).length;
+  if (cleanChars / trimmed.length < 0.8) {
+    return false;
+  }
+
+  return true;
+}
+
+export function sanitizeTitle(title?: string, fallback?: string, defaultTitle: string = "Study Quiz"): string {
+  if (title && isReadableText(title)) {
+    return title.replace(/^#+\s*/, '').replace(/[_-]+/g, ' ').trim();
+  }
+  if (fallback && isReadableText(fallback)) {
+    return fallback.replace(/\.[^/.]+$/, '').replace(/^#+\s*/, '').replace(/[_-]+/g, ' ').trim();
+  }
+  return defaultTitle;
+}
+
 function isUsefulLine(s: string): boolean {
-  return (
-    s.length >= 3 &&
-    s.length <= 350 &&
-    !/^\d+$/.test(s) &&
-    !JUNK_RE.test(s.trim())
-  );
+  return isReadableText(s);
 }
 
 // ─── PPTX / PPT ──────────────────────────────────────────────────────────────

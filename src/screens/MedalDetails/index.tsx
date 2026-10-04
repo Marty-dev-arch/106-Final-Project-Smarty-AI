@@ -21,8 +21,8 @@ export default function MedalDetails() {
   const route = useRoute<RouteProp<RootStackParamList, "MedalDetails">>();
 
   const medal = route.params?.medal;
-  const medalName = medal?.title || "Gold Scholar";
-  const isUnlocked = medal?.unlocked !== false;
+  const medalName = medal?.title || "Achievement";
+  const isUnlocked = Boolean(medal?.unlocked);
 
   const unlockedDate =
     medal?.unlockedDate ||
@@ -33,10 +33,15 @@ export default function MedalDetails() {
       year: "numeric",
     });
 
+  const progressCount = medal?.progress ?? (isUnlocked ? (medal?.totalRequired || 10) : 0);
+  const totalRequired = medal?.totalRequired || 10;
+  const progressPercent = Math.min(100, Math.round((progressCount / totalRequired) * 100));
+
   const handleShare = async () => {
+    if (!isUnlocked) return;
     try {
       await Share.share({
-        message: `I just unlocked the ${medalName} medal on Smarty AI! 🏆 96% Average Score across 10 quizzes!`,
+        message: `I just unlocked the ${medalName} achievement on Smarty AI! 🏆`,
       });
     } catch (e) {
       // Ignored
@@ -45,7 +50,7 @@ export default function MedalDetails() {
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.container}>
-      {/* Confetti Cannon on Unlocked Medal */}
+      {/* Confetti Cannon ONLY on Unlocked Medal */}
       {isUnlocked && <ConfettiCannon count={40} active={true} />}
 
       {/* Top Header Bar */}
@@ -59,24 +64,19 @@ export default function MedalDetails() {
           <Ionicons name="arrow-back" size={22} color="#111827" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Medal Details</Text>
+        <Text style={styles.headerTitle}>Achievement Details</Text>
 
         <View style={styles.headerRightActions}>
-          <TouchableOpacity
-            style={styles.actionIconBtn}
-            onPress={handleShare}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="share-social-outline" size={20} color="#111827" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionIconBtn}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="ellipsis-vertical" size={20} color="#111827" />
-          </TouchableOpacity>
+          {isUnlocked && (
+            <TouchableOpacity
+              style={styles.actionIconBtn}
+              onPress={handleShare}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="share-social-outline" size={20} color="#111827" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -87,46 +87,74 @@ export default function MedalDetails() {
         <View style={styles.contentWrapper}>
           {/* Hero Medal Showcase Card */}
           <LinearGradient
-            colors={["#FAF5FF", "#FFFBEB", "#FDF2F8"]}
+            colors={isUnlocked ? ["#FAF5FF", "#FFFBEB", "#FDF2F8"] : ["#F8FAFC", "#F1F5F9", "#E2E8F0"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.heroCard}
+            style={[styles.heroCard, !isUnlocked && { borderColor: "#E2E8F0" }]}
           >
-            {/* Golden Medal Circle with EARNED badge */}
+            {/* Medal Circle with EARNED / LOCKED badge */}
             <View style={styles.heroMedalWrapper}>
               <LinearGradient
-                colors={["#E5A93C", "#C2831B", "#8C5810"]}
+                colors={
+                  isUnlocked
+                    ? ["#E5A93C", "#C2831B", "#8C5810"]
+                    : ["#94A3B8", "#64748B", "#475569"]
+                }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.heroGoldCircle}
+                style={[styles.heroGoldCircle, !isUnlocked && { shadowColor: "#64748B" }]}
               >
-                <Ionicons name="ribbon" size={48} color="#FFFFFF" />
+                <Ionicons
+                  name={isUnlocked ? "ribbon" : "lock-closed"}
+                  size={44}
+                  color="#FFFFFF"
+                />
               </LinearGradient>
 
-              <View style={styles.earnedPill}>
-                <Ionicons name="checkmark" size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
-                <Text style={styles.earnedPillText}>EARNED</Text>
-              </View>
+              {isUnlocked ? (
+                <View style={styles.earnedPill}>
+                  <Ionicons name="checkmark" size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
+                  <Text style={styles.earnedPillText}>EARNED</Text>
+                </View>
+              ) : (
+                <View style={[styles.earnedPill, { backgroundColor: "#334155" }]}>
+                  <Ionicons name="lock-closed" size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
+                  <Text style={styles.earnedPillText}>LOCKED</Text>
+                </View>
+              )}
             </View>
 
             {/* Tag Badges */}
             <View style={styles.heroTagsRow}>
-              <View style={styles.goldTierBadge}>
-                <Text style={styles.goldTierText}>GOLD TIER • LEVEL 5</Text>
+              <View style={[styles.goldTierBadge, !isUnlocked && { backgroundColor: "#E2E8F0" }]}>
+                <Text style={[styles.goldTierText, !isUnlocked && { color: "#475569" }]}>
+                  {medal?.subtitle?.toUpperCase() || (isUnlocked ? "GOLD TIER" : "LOCKED TIER")}
+                </Text>
               </View>
-              <View style={styles.unlockedBadge}>
-                <Text style={styles.unlockedText}>Unlocked</Text>
+              <View style={[styles.unlockedBadge, !isUnlocked && { backgroundColor: "#F1F5F9" }]}>
+                <Text style={[styles.unlockedText, !isUnlocked && { color: "#64748B" }]}>
+                  {isUnlocked ? "Unlocked" : "Locked"}
+                </Text>
               </View>
             </View>
 
             {/* Title & Description */}
             <Text style={styles.heroTitle}>{medalName}</Text>
             <View style={styles.dateRow}>
-              <Ionicons name="calendar-outline" size={12} color="#6B7280" style={{ marginRight: 4 }} />
-              <Text style={styles.dateText}>{isUnlocked ? `Unlocked on ${unlockedDate}` : 'Locked'}</Text>
+              <Ionicons
+                name={isUnlocked ? "calendar-outline" : "information-circle-outline"}
+                size={13}
+                color="#6B7280"
+                style={{ marginRight: 4 }}
+              />
+              <Text style={styles.dateText}>
+                {isUnlocked
+                  ? `Unlocked on ${unlockedDate}`
+                  : "Criteria not met yet — complete study goals to unlock"}
+              </Text>
             </View>
             <Text style={styles.heroDescription}>
-              Awarded for scoring 90% or higher on 10 consecutive advanced quizzes across any subject without hints.
+              {medal?.description || "Complete study requirements and quizzes to earn this achievement badge."}
             </Text>
           </LinearGradient>
 
@@ -134,49 +162,81 @@ export default function MedalDetails() {
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
               <View style={styles.sectionHeaderLeft}>
-                <Ionicons name="ribbon-outline" size={16} color="#4338CA" style={{ marginRight: 6 }} />
+                <Ionicons
+                  name={isUnlocked ? "checkmark-circle" : "time-outline"}
+                  size={16}
+                  color={isUnlocked ? "#10B981" : "#6366F1"}
+                  style={{ marginRight: 6 }}
+                />
                 <Text style={styles.sectionHeaderTitle}>Achievement Progress</Text>
               </View>
-              <Text style={styles.masteredFraction}>10 / 10 Mastered</Text>
+              <Text style={[styles.masteredFraction, !isUnlocked && { color: "#6366F1" }]}>
+                {isUnlocked
+                  ? `${totalRequired} / ${totalRequired} Mastered`
+                  : `${progressCount} / ${totalRequired} Completed`}
+              </Text>
             </View>
 
             <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: "100%" }]} />
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${isUnlocked ? 100 : progressPercent}%`,
+                    backgroundColor: isUnlocked ? "#10B981" : "#6366F1",
+                  },
+                ]}
+              />
             </View>
 
             {/* 2x2 Metric Grid */}
             <View style={styles.metricsGrid}>
               <View style={[styles.metricCard, { backgroundColor: "#F9FAFB" }]}>
-                <Text style={styles.metricLabel}>Average Score</Text>
-                <Text style={styles.metricValue}>96%</Text>
-                <Text style={styles.metricSubGold}>+6% above criteria</Text>
+                <Text style={styles.metricLabel}>Requirement Status</Text>
+                <Text style={[styles.metricValue, { color: isUnlocked ? "#10B981" : "#F59E0B" }]}>
+                  {isUnlocked ? "Achieved" : `${progressPercent}%`}
+                </Text>
+                <Text style={styles.metricSubGold}>
+                  {isUnlocked ? "Full criteria met" : `${totalRequired - progressCount} remaining`}
+                </Text>
               </View>
 
               <View style={[styles.metricCard, { backgroundColor: "#F5F3FF" }]}>
-                <Text style={styles.metricLabel}>Quizzes Qualified</Text>
-                <Text style={styles.metricValue}>10 / 10</Text>
-                <Text style={styles.metricSubBlue}>Advanced Tier</Text>
+                <Text style={styles.metricLabel}>Category</Text>
+                <Text style={styles.metricValue}>{medal?.category || "General"}</Text>
+                <Text style={styles.metricSubBlue}>Study Track</Text>
               </View>
 
               <View style={[styles.metricCard, { backgroundColor: "#F9FAFB" }]}>
-                <Text style={styles.metricLabel}>Best Streak</Text>
-                <Text style={styles.metricValue}>12 Days</Text>
-                <Text style={styles.metricSubGray}>Continuous streak</Text>
+                <Text style={styles.metricLabel}>Reward</Text>
+                <Text style={styles.metricValue}>+250 XP</Text>
+                <Text style={styles.metricSubGray}>Profile XP bonus</Text>
               </View>
 
               <View style={[styles.metricCard, { backgroundColor: "#F5F3FF" }]}>
-                <Text style={styles.metricLabel}>Rarity</Text>
-                <Text style={[styles.metricValue, { color: "#6D28D9" }]}>Top 3.5%</Text>
-                <Text style={styles.metricSubGray}>Elite achiever rank</Text>
+                <Text style={styles.metricLabel}>Status</Text>
+                <Text
+                  style={[
+                    styles.metricValue,
+                    { color: isUnlocked ? "#10B981" : "#64748B" },
+                  ]}
+                >
+                  {isUnlocked ? "Unlocked" : "In Progress"}
+                </Text>
+                <Text style={styles.metricSubGray}>
+                  {isUnlocked ? "Active badge" : "Pending completion"}
+                </Text>
               </View>
             </View>
           </View>
 
-          {/* Rewards & Perks Unlocked Section */}
+          {/* Rewards & Perks Section */}
           <View style={styles.sectionCard}>
             <View style={styles.perksHeaderRow}>
               <Ionicons name="star" size={14} color="#D97706" style={{ marginRight: 6 }} />
-              <Text style={styles.sectionHeaderTitle}>Rewards & Perks Unlocked</Text>
+              <Text style={styles.sectionHeaderTitle}>
+                {isUnlocked ? "Rewards & Perks Unlocked" : "Locked Rewards & Perks"}
+              </Text>
             </View>
 
             {/* Perk 1 */}
@@ -184,92 +244,46 @@ export default function MedalDetails() {
               <Ionicons name="ribbon-outline" size={18} color="#111827" style={styles.perkIcon} />
               <View style={styles.perkInfo}>
                 <Text style={styles.perkTitle}>+250 Experience Points</Text>
-                <Text style={styles.perkSubtitle}>Added to Global Season Ranking</Text>
+                <Text style={styles.perkSubtitle}>Added to Profile XP and leaderboard</Text>
               </View>
-              <Text style={styles.perkRightGold}>+250 XP</Text>
+              <Text style={isUnlocked ? styles.perkRightGold : { color: "#94A3B8", fontSize: 11, fontWeight: "700" }}>
+                {isUnlocked ? "+250 XP" : "Locked"}
+              </Text>
             </View>
 
             {/* Perk 2 */}
             <View style={styles.perkCard}>
               <Ionicons name="shield-outline" size={18} color="#111827" style={styles.perkIcon} />
               <View style={styles.perkInfo}>
-                <Text style={styles.perkTitle}>Gold Scholar Profile Badge</Text>
-                <Text style={styles.perkSubtitle}>Exclusive animated profile border & flair</Text>
+                <Text style={styles.perkTitle}>{medalName} Profile Badge</Text>
+                <Text style={styles.perkSubtitle}>Exclusive achievement flair for profile showcase</Text>
               </View>
-              <Text style={styles.perkRightGreen}>Active</Text>
-            </View>
-
-            {/* Perk 3 */}
-            <View style={styles.perkCard}>
-              <Ionicons name="trophy-outline" size={18} color="#111827" style={styles.perkIcon} />
-              <View style={styles.perkInfo}>
-                <Text style={styles.perkTitle}>Master Collector Title Progress</Text>
-                <Text style={styles.perkSubtitle}>Contributes to Master Collector Tier 4</Text>
-              </View>
-              <Text style={styles.perkRightPurple}>Completed</Text>
-            </View>
-          </View>
-
-          {/* Related Medals Section */}
-          <View style={styles.relatedSectionHeader}>
-            <Text style={styles.relatedSectionTitle}>Related Medals</Text>
-            <TouchableOpacity onPress={() => navigation.navigate("Achievements")} activeOpacity={0.7}>
-              <Text style={styles.viewAllLink}>View All &gt;</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.relatedMedalsRow}>
-            {/* Master Mind */}
-            <View style={styles.relatedMedalItem}>
-              <LinearGradient
-                colors={["#E5A93C", "#C2831B", "#8C5810"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.relatedGoldCircle}
-              >
-                <Ionicons name="bulb" size={20} color="#FFFFFF" />
-              </LinearGradient>
-              <Text style={styles.relatedTitle}>Master Mind</Text>
-              <Text style={styles.relatedEarned}>Earned</Text>
-            </View>
-
-            {/* Grand Medal */}
-            <View style={styles.relatedMedalItem}>
-              <LinearGradient
-                colors={["#E5A93C", "#C2831B", "#8C5810"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.relatedGoldCircle}
-              >
-                <Ionicons name="trophy" size={20} color="#FFFFFF" />
-              </LinearGradient>
-              <Text style={styles.relatedTitle}>Grand Medal</Text>
-            </View>
-
-            {/* Pacesetter */}
-            <View style={styles.relatedMedalItem}>
-              <LinearGradient
-                colors={["#E5A93C", "#C2831B", "#8C5810"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.relatedGoldCircle}
-              >
-                <Ionicons name="flash" size={20} color="#FFFFFF" />
-              </LinearGradient>
-              <Text style={styles.relatedTitle}>Pacesetter</Text>
-              <Text style={styles.relatedEarned}>Earned</Text>
+              <Text style={isUnlocked ? styles.perkRightGreen : { color: "#94A3B8", fontSize: 11, fontWeight: "700" }}>
+                {isUnlocked ? "Active" : "Locked"}
+              </Text>
             </View>
           </View>
 
           {/* Action Buttons */}
-          <TouchableOpacity
-            style={styles.shareButton}
-            onPress={handleShare}
-            activeOpacity={0.88}
-          >
-            <Ionicons name="share-social-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.shareButtonText}>Share Achievement</Text>
-          </TouchableOpacity>
+          {isUnlocked ? (
+            <TouchableOpacity
+              style={styles.shareButton}
+              onPress={handleShare}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="share-social-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.shareButtonText}>Share Achievement</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.shareButton, { backgroundColor: "#6366F1" }]}
+              onPress={() => navigation.navigate("UploadQuiz")}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="play-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.shareButtonText}>Take Quizzes to Unlock</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.backLinkButton}

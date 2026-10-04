@@ -9,10 +9,11 @@ import {
   Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { RootStackParamList } from "../../types/navigation";
+import { Quiz } from "../../types/quiz";
 import { useQuiz } from "../../context/QuizContext";
 import { useAuth } from "../../context/AuthContext";
 import { useNotifications } from "../../context/NotificationContext";
@@ -23,17 +24,19 @@ import ConfettiCannon from "../../components/common/ConfettiCannon";
 import XPCounterRollup from "../../components/common/XPCounterRollup";
 import { triggerHaptic } from "../../utils/haptics";
 import { playSound } from "../../utils/soundEffects";
+import { isReadableText, sanitizeTitle } from "../../utils/documentExtractor";
 import THEME from "../../config/theme";
 
 export default function Results() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { latestAttempt, activeQuiz } = useQuiz();
+  const route = useRoute<RouteProp<RootStackParamList, "Results">>();
+  const { latestAttempt, attempts, activeQuiz, quizzes } = useQuiz();
   const { user } = useAuth();
   const { sendNotification } = useNotifications();
   const [showExportModal, setShowExportModal] = useState(false);
   const [showAchievementPopup, setShowAchievementPopup] = useState(false);
 
-  const attempt = latestAttempt || {
+  const attempt = (route.params?.attemptId ? attempts?.find(a => a.id === route.params?.attemptId) : null) || latestAttempt || {
     id: "att_1",
     quizId: "quiz_cell_biology",
     quizTitle: activeQuiz?.title || "Cell Biology: Structure & Function",
@@ -45,6 +48,24 @@ export default function Results() {
     answers: [],
     date: "Today",
   };
+
+  const targetQuiz: Quiz = (quizzes && quizzes.find(q => q.id === attempt.quizId)) || activeQuiz || {
+    id: attempt.quizId,
+    title: attempt.quizTitle,
+    description: "Generated Quiz",
+    category: "General",
+    difficulty: "medium" as const,
+    questionTypes: ["multiple_choice" as const],
+    questionsCount: attempt.totalQuestions,
+    questions: [],
+    createdAt: new Date().toISOString(),
+  };
+
+  const displayTitle = sanitizeTitle(
+    attempt.quizTitle,
+    activeQuiz?.sourceDocName || activeQuiz?.title,
+    "Study Quiz"
+  );
 
   const incorrectCount = attempt.totalQuestions - attempt.score;
   const minutes = Math.floor(attempt.timeSpentSeconds / 60);
@@ -176,7 +197,7 @@ export default function Results() {
 
         <View style={styles.topicRow}>
           <Ionicons name="flask-outline" size={16} color="#4648D4" style={{ marginRight: 6 }} />
-          <Text style={styles.topicText}>{attempt.quizTitle}</Text>
+          <Text style={styles.topicText}>{displayTitle}</Text>
         </View>
 
         {/* 3 Metrics Card */}
@@ -227,14 +248,14 @@ export default function Results() {
         </TouchableOpacity>
 
         {/* Export Quiz Button */}
-        {activeQuiz && (
+        {targetQuiz && (
           <TouchableOpacity
             style={styles.exportOutlineBtn}
             onPress={() => setShowExportModal(true)}
             activeOpacity={0.85}
           >
             <Ionicons name="download-outline" size={18} color="#6D44F2" style={{ marginRight: 6 }} />
-            <Text style={styles.exportOutlineBtnText}>Export Quiz (DOCX, PPT, PDF)</Text>
+            <Text style={styles.exportOutlineBtnText}>Export Quiz (PDF, DOCX)</Text>
           </TouchableOpacity>
         )}
 
@@ -248,11 +269,11 @@ export default function Results() {
         </TouchableOpacity>
       </ScrollView>
 
-      {activeQuiz && (
+      {targetQuiz && (
         <ExportModal
           visible={showExportModal}
           onClose={() => setShowExportModal(false)}
-          quiz={activeQuiz}
+          quiz={targetQuiz}
           attempt={attempt}
         />
       )}

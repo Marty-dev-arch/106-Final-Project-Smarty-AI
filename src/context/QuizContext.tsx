@@ -5,7 +5,7 @@ import { storageService } from '../services/storageService';
 import { geminiService } from '../services/geminiService';
 import { useAuth } from './AuthContext';
 import { useNotifications } from './NotificationContext';
-import { SlideBlock } from '../utils/documentExtractor';
+import { SlideBlock, sanitizeTitle } from '../utils/documentExtractor';
 
 interface QuizContextType {
   quizzes: Quiz[];
@@ -81,9 +81,21 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
         quizService.getAttempts(),
         quizService.getMedals(),
       ]);
-      setQuizzes(qList);
+      const sanitizedQuizzes = qList.map(q => ({
+        ...q,
+        title: sanitizeTitle(q.title, q.sourceDocName, 'Study Quiz'),
+      }));
+      const sanitizedAttempts = aList.map(a => {
+        const matchingQuiz = qList.find(q => q.id === a.quizId);
+        return {
+          ...a,
+          quizTitle: sanitizeTitle(a.quizTitle, matchingQuiz?.sourceDocName || matchingQuiz?.title, 'Study Quiz'),
+        };
+      });
+
+      setQuizzes(sanitizedQuizzes);
       setMistakes(mList);
-      setAttempts(aList);
+      setAttempts(sanitizedAttempts);
       setMedals(medList);
 
       // Auto-heal user stats in Firestore and state if 0 quizzes exist but stats are non-zero
@@ -137,7 +149,18 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let correctCount = 0;
     const answerDetails = activeQuiz.questions.map((q) => {
       const uAns = userAnswers[q.id];
-      const isCorrect = uAns !== undefined && uAns === q.correctAnswer;
+      let isCorrect = false;
+      if (uAns !== undefined && uAns !== null && uAns !== '') {
+        if (q.type === 'enumeration') {
+          const userNorm = String(uAns).trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+          const correctNorm = String(q.correctAnswer).trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+          isCorrect = Boolean(userNorm && userNorm === correctNorm);
+        } else {
+          isCorrect =
+            uAns === q.correctAnswer ||
+            String(uAns).trim() === String(q.correctAnswer).trim();
+        }
+      }
       if (isCorrect) correctCount++;
       return {
         questionId: q.id,
@@ -154,7 +177,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const attempt: QuizAttempt = {
       id: 'att_' + Date.now(),
       quizId: activeQuiz.id,
-      quizTitle: activeQuiz.title,
+      quizTitle: sanitizeTitle(activeQuiz.title, activeQuiz.sourceDocName, 'Study Quiz'),
       score: correctCount,
       totalQuestions,
       percentage,

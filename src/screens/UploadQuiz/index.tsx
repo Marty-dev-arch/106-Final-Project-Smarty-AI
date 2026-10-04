@@ -30,7 +30,7 @@ import { BellIcon, ProfilePersonIcon } from "../../components/common/TopBar";
 import NotificationDropdown from "../../components/common/NotificationDropdown";
 import BrainSpinner from "../../components/common/BrainSpinner";
 import THEME from "../../config/theme";
-import { documentExtractor, SlideBlock, uint8ArrayToBase64 } from "../../utils/documentExtractor";
+import { documentExtractor, SlideBlock, uint8ArrayToBase64, isReadableText } from "../../utils/documentExtractor";
 import { triggerHaptic } from "../../utils/haptics";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -152,12 +152,17 @@ export default function UploadQuiz() {
         const file = e.target?.files?.[0];
         if (file) {
           const extractedDoc = await documentExtractor.extractTextFromFile(file);
-          const baseName = extractedDoc.fileName.replace(/\.[^/.]+$/, "");
-          // Always derive fresh title from this file
-          const derivedTitle =
-            (extractedDoc.slides?.[0]?.title || baseName)
-              .replace(/\b\d+\s*slides\b/gi, '')
-              .trim();
+          const baseName = extractedDoc.fileName.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
+          let derivedTitle = baseName;
+          if (extractedDoc.slides && extractedDoc.slides.length > 0) {
+            for (const s of extractedDoc.slides) {
+              const t = s.title?.trim();
+              if (t && isReadableText(t) && t.length > 3 && t.length < 80) {
+                derivedTitle = t.replace(/\b\d+\s*slides\b/gi, '').trim();
+                break;
+              }
+            }
+          }
           setTitle(derivedTitle || baseName);
           setSourceText(extractedDoc.text);
           setUploadedSlides(extractedDoc.slides && extractedDoc.slides.length > 0 ? extractedDoc.slides : undefined);
@@ -287,11 +292,17 @@ export default function UploadQuiz() {
           }
         }
 
-        const baseName = fileName.replace(/\.[^/.]+$/, '');
-        const derivedTitle = (extractedSlides?.[0]?.title || baseName)
-          .replace(/[_-]+/g, ' ')
-          .replace(/\b\d+\s*slides\b/gi, '')
-          .trim();
+        const baseName = fileName.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ').trim();
+        let derivedTitle = baseName;
+        if (extractedSlides && extractedSlides.length > 0) {
+          for (const s of extractedSlides) {
+            const t = s.title?.trim();
+            if (t && isReadableText(t) && t.length > 3 && t.length < 80) {
+              derivedTitle = t.replace(/\b\d+\s*slides\b/gi, '').trim();
+              break;
+            }
+          }
+        }
 
         setTitle(derivedTitle || baseName);
         setSourceText(fileText);
@@ -491,7 +502,10 @@ export default function UploadQuiz() {
                   <Text style={[styles.fileNameText, { color: colors.text }]} numberOfLines={1}>{uploadedFile.name}</Text>
                   <Text style={styles.fileMetaText}>{uploadedFile.size || "Active Document"}</Text>
                 </View>
-                <TouchableOpacity onPress={handleRemoveDocument} style={styles.removeFileBtn}>
+                <TouchableOpacity onPress={handlePickDocument} style={styles.changeFileBtn} activeOpacity={0.7}>
+                  <Ionicons name="swap-horizontal" size={18} color="#6D44F2" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleRemoveDocument} style={styles.removeFileBtn} activeOpacity={0.7}>
                   <Ionicons name="trash-outline" size={18} color="#EF4444" />
                 </TouchableOpacity>
               </View>
@@ -792,7 +806,9 @@ export default function UploadQuiz() {
               style={styles.modalSecondaryBtn}
               onPress={() => {
                 setShowUploadSuccessModal(false);
-                handlePickDocument();
+                setTimeout(() => {
+                  handlePickDocument();
+                }, Platform.OS === "ios" ? 450 : 150);
               }}
               activeOpacity={0.7}
             >
@@ -1009,6 +1025,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6D44F2",
     marginTop: 2,
+  },
+  changeFileBtn: {
+    padding: 8,
+    marginRight: 4,
   },
   removeFileBtn: {
     padding: 8,
