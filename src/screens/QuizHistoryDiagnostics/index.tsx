@@ -44,10 +44,29 @@ interface AttemptRecord {
 
 export default function QuizHistoryDiagnostics() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { startMistakePractice, attempts, quizzes } = useQuiz();
+  const { startMistakePractice, attempts, quizzes, mistakes } = useQuiz();
 
   const [segmentTab, setSegmentTab] = useState<"history" | "weakTopics">("history");
   const [filterType, setFilterType] = useState<"all" | "passed" | "needsReview">("all");
+
+  const weakTopics = React.useMemo(() => {
+    if (!mistakes || mistakes.length === 0) return [];
+    const topicMap = new Map<string, { topic: string; category: string; count: number; sampleDesc: string; accPercent: number }>();
+    for (const m of mistakes) {
+      if (m.mastered) continue;
+      const cat = m.category || m.quizTitle || "General";
+      const existing = topicMap.get(cat) || {
+        topic: cat,
+        category: cat.toUpperCase(),
+        count: 0,
+        sampleDesc: m.question?.prompt ? `Missed: "${m.question.prompt.slice(0, 45)}..."` : "Concepts requiring review",
+        accPercent: Math.max(35, Math.min(75, Math.round(100 - (mistakes.length * 8)))),
+      };
+      existing.count += 1;
+      topicMap.set(cat, existing);
+    }
+    return Array.from(topicMap.values()).slice(0, 3);
+  }, [mistakes]);
 
   const formattedAttempts: AttemptRecord[] = (attempts || []).map(att => {
     const min = Math.floor(att.timeSpentSeconds / 60);
@@ -118,7 +137,7 @@ export default function QuizHistoryDiagnostics() {
                   segmentTab === "history" && styles.segmentTextActive,
                 ]}
               >
-                History 24
+                History {attempts?.length || 0}
               </Text>
             </TouchableOpacity>
 
@@ -136,127 +155,83 @@ export default function QuizHistoryDiagnostics() {
                   segmentTab === "weakTopics" && styles.segmentTextActive,
                 ]}
               >
-                Weak Topics 3
+                Weak Topics {weakTopics.length}
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Diagnostic Insight Gradient Hero Card */}
-          <LinearGradient
-            colors={["#4F46E5", "#6366F1", "#5A30D0"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroBanner}
-          >
-            {/* Top row */}
-            <View style={styles.heroTopRow}>
-              <View style={styles.heroLeftBadgeGroup}>
-                <View style={styles.mascotSquareBadge}>
-                  <Image
-                    source={require("../../../assets/illustrations/smarty_logo.png")}
-                    style={styles.mascotMini}
-                    resizeMode="contain"
-                  />
-                </View>
-                <Text style={styles.diagnosticTag}>DIAGNOSTIC INSIGHT</Text>
-              </View>
-
-              <View style={styles.needsFocusBadge}>
-                <Ionicons name="trending-down" size={12} color="#92400E" style={{ marginRight: 3 }} />
-                <Text style={styles.needsFocusText}>Needs Focus</Text>
-              </View>
-            </View>
-
-            <Text style={styles.heroTitle}>AI Weak Spot Detect</Text>
-            <Text style={styles.heroSubtitle}>
-              on your last 10 quizzes, 3 low sub-topics show persistent confusion. Tackle them now to maintain your score Activity.
-            </Text>
-
-            {/* 3 Weak Sub-Topics Mini Cards */}
-            <View style={styles.miniTopicCard}>
-              <View style={styles.miniTopicTopRow}>
-                <Text style={styles.miniTopicCategory}>ORGANIC CHEMISTRY</Text>
-                <Text style={[styles.miniTopicAcc, { color: "#DC2626" }]}>
-                  42% Check 8 err
-                </Text>
-              </View>
-              <Text style={styles.miniTopicTitle}>Reaction Mechanisms</Text>
-              <View style={styles.miniTopicDescRow}>
-                <Ionicons name="warning-outline" size={13} color="#EF4444" style={{ marginRight: 4 }} />
-                <Text style={styles.miniTopicDesc}>
-                  Struggling with SN1 vs SN2 transition states
-                </Text>
-              </View>
-              <View style={styles.miniTopicBottomRow}>
-                <View style={styles.progressBarTrack}>
-                  <View style={[styles.progressBarFill, { width: "42%", backgroundColor: "#DC2626" }]} />
-                </View>
-                <TouchableOpacity onPress={handleLaunchDrill} activeOpacity={0.7}>
-                  <Text style={styles.practiceTopicLink}>Practice Topic →</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.miniTopicCard}>
-              <View style={styles.miniTopicTopRow}>
-                <Text style={styles.miniTopicCategory}>BIOLOGY</Text>
-                <Text style={[styles.miniTopicAcc, { color: "#D97706" }]}>
-                  54% Acc • 5 err
-                </Text>
-              </View>
-              <Text style={styles.miniTopicTitle}>Cell Membrane Permea</Text>
-              <View style={styles.miniTopicDescRow}>
-                <Ionicons name="ellipse-outline" size={13} color="#F59E0B" style={{ marginRight: 4 }} />
-                <Text style={styles.miniTopicDesc}>
-                  Active transport vs facilitated diffusion confusi...
-                </Text>
-              </View>
-              <View style={styles.miniTopicBottomRow}>
-                <View style={styles.progressBarTrack}>
-                  <View style={[styles.progressBarFill, { width: "54%", backgroundColor: "#F59E0B" }]} />
-                </View>
-                <TouchableOpacity onPress={handleLaunchDrill} activeOpacity={0.7}>
-                  <Text style={styles.practiceTopicLink}>Practice Topic →</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.miniTopicCard}>
-              <View style={styles.miniTopicTopRow}>
-                <Text style={styles.miniTopicCategory}>WORLD HISTORY</Text>
-                <Text style={[styles.miniTopicAcc, { color: "#D97706" }]}>
-                  60% Acc • 4 err
-                </Text>
-              </View>
-              <Text style={styles.miniTopicTitle}>WWII Pacific Theatre</Text>
-              <View style={styles.miniTopicDescRow}>
-                <Ionicons name="globe-outline" size={13} color="#F59E0B" style={{ marginRight: 4 }} />
-                <Text style={styles.miniTopicDesc}>
-                  Battle timeline sequence & Island Hopping stra
-                </Text>
-              </View>
-              <View style={styles.miniTopicBottomRow}>
-                <View style={styles.progressBarTrack}>
-                  <View style={[styles.progressBarFill, { width: "60%", backgroundColor: "#FBBF24" }]} />
-                </View>
-                <TouchableOpacity onPress={handleLaunchDrill} activeOpacity={0.7}>
-                  <Text style={styles.practiceTopicLink}>Practice Topic →</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Launch Smart Drill CTA Button */}
-            <TouchableOpacity
-              style={styles.launchDrillButton}
-              onPress={handleLaunchDrill}
-              activeOpacity={0.88}
+          {/* Diagnostic Insight Gradient Hero Card: Render null if no weak spots detected */}
+          {weakTopics.length > 0 ? (
+            <LinearGradient
+              colors={["#4F46E5", "#6366F1", "#5A30D0"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroBanner}
             >
-              <Ionicons name="flash" size={15} color="#1E1B4B" style={{ marginRight: 6 }} />
-              <Text style={styles.launchDrillButtonText}>
-                Launch Smart Drill (All Weak Spots)
+              {/* Top row */}
+              <View style={styles.heroTopRow}>
+                <View style={styles.heroLeftBadgeGroup}>
+                  <View style={styles.mascotSquareBadge}>
+                    <Image
+                      source={require("../../../assets/illustrations/smarty_logo.png")}
+                      style={styles.mascotMini}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <Text style={styles.diagnosticTag}>DIAGNOSTIC INSIGHT</Text>
+                </View>
+
+                <View style={styles.needsFocusBadge}>
+                  <Ionicons name="trending-down" size={12} color="#92400E" style={{ marginRight: 3 }} />
+                  <Text style={styles.needsFocusText}>Needs Focus</Text>
+                </View>
+              </View>
+
+              <Text style={styles.heroTitle}>AI Weak Spot Detect</Text>
+              <Text style={styles.heroSubtitle}>
+                Based on your quiz history, {weakTopics.length} topic{weakTopics.length > 1 ? "s" : ""} show areas for improvement. Practice them now to improve your score.
               </Text>
-            </TouchableOpacity>
-          </LinearGradient>
+
+              {/* Dynamic Weak Sub-Topics Mini Cards */}
+              {weakTopics.map((wt, idx) => (
+                <View key={idx} style={styles.miniTopicCard}>
+                  <View style={styles.miniTopicTopRow}>
+                    <Text style={styles.miniTopicCategory}>{wt.category}</Text>
+                    <Text style={[styles.miniTopicAcc, { color: "#DC2626" }]}>
+                      {wt.count} error{wt.count > 1 ? "s" : ""}
+                    </Text>
+                  </View>
+                  <Text style={styles.miniTopicTitle}>{wt.topic}</Text>
+                  <View style={styles.miniTopicDescRow}>
+                    <Ionicons name="warning-outline" size={13} color="#EF4444" style={{ marginRight: 4 }} />
+                    <Text style={styles.miniTopicDesc} numberOfLines={1}>
+                      {wt.sampleDesc}
+                    </Text>
+                  </View>
+                  <View style={styles.miniTopicBottomRow}>
+                    <View style={styles.progressBarTrack}>
+                      <View style={[styles.progressBarFill, { width: `${wt.accPercent}%`, backgroundColor: wt.accPercent < 50 ? "#DC2626" : "#F59E0B" }]} />
+                    </View>
+                    <TouchableOpacity onPress={handleLaunchDrill} activeOpacity={0.7}>
+                      <Text style={styles.practiceTopicLink}>Practice Topic →</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+
+              {/* Launch Smart Drill CTA Button */}
+              <TouchableOpacity
+                style={styles.launchDrillButton}
+                onPress={handleLaunchDrill}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="flash" size={15} color="#1E1B4B" style={{ marginRight: 6 }} />
+                <Text style={styles.launchDrillButtonText}>
+                  Launch Smart Drill ({mistakes?.length || 0} Weak Spots)
+                </Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          ) : null}
 
           {/* Recent Attempts Section */}
           <View style={styles.recentAttemptsHeader}>
@@ -418,7 +393,7 @@ export default function QuizHistoryDiagnostics() {
                       activeOpacity={0.8}
                     >
                       <Ionicons name="refresh" size={11} color="#DC2626" style={{ marginRight: 4 }} />
-                      <Text style={styles.retryPillText}>Retry Missed (5)</Text>
+                      <Text style={styles.retryPillText}>Retry Missed ({item.missedCount})</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.reviewPillButton}
@@ -442,6 +417,18 @@ export default function QuizHistoryDiagnostics() {
               </View>
             </View>
           ))}
+
+          {filteredAttempts.length === 0 && (
+            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 48, paddingHorizontal: 24 }}>
+              <Ionicons name="documents-outline" size={48} color="#9CA3AF" style={{ marginBottom: 12 }} />
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 6 }}>
+                No Quiz History Yet
+              </Text>
+              <Text style={{ fontSize: 13, color: "#6B7280", textAlign: "center", lineHeight: 20 }}>
+                Complete a quiz to track your diagnostic score analysis, mistakes, and weak spots.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 

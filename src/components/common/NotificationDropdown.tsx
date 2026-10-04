@@ -120,7 +120,7 @@ export const NotificationDropdown: React.FC = () => {
               style={[
                 styles.dropdownCard,
                 {
-                  top: Math.max(insets.top + 54, 60),
+                  top: Math.max(insets.top, 12) + 54,
                   backgroundColor: colors.card,
                   borderColor: colors.cardBorder,
                   shadowColor: isDark ? '#000000' : '#4F46E5',
@@ -139,7 +139,7 @@ export const NotificationDropdown: React.FC = () => {
                   )}
                 </View>
 
-                {unreadCount > 0 && (
+                {notifications.length > 0 && (
                   <TouchableOpacity
                     style={styles.markAllBtn}
                     onPress={markAllAsRead}

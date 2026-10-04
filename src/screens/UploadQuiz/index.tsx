@@ -11,6 +11,7 @@ import {
   Image,
   Platform,
   Alert,
+  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -29,10 +30,44 @@ import { BellIcon, ProfilePersonIcon } from "../../components/common/TopBar";
 import NotificationDropdown from "../../components/common/NotificationDropdown";
 import BrainSpinner from "../../components/common/BrainSpinner";
 import THEME from "../../config/theme";
-import { documentExtractor, SlideBlock } from "../../utils/documentExtractor";
+import { documentExtractor, SlideBlock, uint8ArrayToBase64 } from "../../utils/documentExtractor";
+import { triggerHaptic } from "../../utils/haptics";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { uploadDocumentToCloudinary } from "../../services/cloudinaryService";
+
+function decodeBase64ToUint8Array(base64: string): Uint8Array {
+  if (typeof atob !== "undefined") {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const clean = base64.replace(/[^A-Za-z0-9+/]/g, "");
+  const len = clean.length;
+  let validLen = len;
+  if (clean.endsWith("==")) validLen -= 2;
+  else if (clean.endsWith("=")) validLen -= 1;
+  const byteLen = Math.floor((validLen * 3) / 4);
+  const bytes = new Uint8Array(byteLen);
+  let p = 0;
+  for (let i = 0; i < len; i += 4) {
+    const enc1 = chars.indexOf(clean.charAt(i));
+    const enc2 = chars.indexOf(clean.charAt(i + 1));
+    const enc3 = chars.indexOf(clean.charAt(i + 2));
+    const enc4 = chars.indexOf(clean.charAt(i + 3));
+    const chr1 = (enc1 << 2) | (enc2 >> 4);
+    const chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+    const chr3 = ((enc3 & 3) << 6) | enc4;
+    if (p < byteLen) bytes[p++] = chr1;
+    if (enc3 !== 64 && enc3 !== -1 && p < byteLen) bytes[p++] = chr2;
+    if (enc4 !== 64 && enc4 !== -1 && p < byteLen) bytes[p++] = chr3;
+  }
+  return bytes;
+}
 
 interface UploadedFileInfo {
   name: string;
@@ -52,6 +87,7 @@ export default function UploadQuiz() {
   const [uploadedFile, setUploadedFile] = useState<UploadedFileInfo | null>(null);
   const [uploadedSlides, setUploadedSlides] = useState<SlideBlock[] | undefined>(undefined);
   const [rawFile, setRawFile] = useState<File | null>(null); // raw File for Cloudinary upload
+  const [pdfBase64, setPdfBase64] = useState<string | undefined>(undefined);
   const [questionCount, setQuestionCount] = useState(10);
   const [difficulty, setDifficulty] = useState<Difficulty>(
     (user?.defaultDifficulty || "Medium").toLowerCase() as Difficulty
@@ -61,6 +97,8 @@ export default function UploadQuiz() {
     "true_false",
   ]);
   const [generating, setGenerating] = useState(false);
+  const [showUploadSuccessModal, setShowUploadSuccessModal] = useState(false);
+  const [showRemoveConfirmModal, setShowRemoveConfirmModal] = useState(false);
 
   useEffect(() => {
     if (user?.defaultDifficulty) {
@@ -123,12 +161,15 @@ export default function UploadQuiz() {
           setTitle(derivedTitle || baseName);
           setSourceText(extractedDoc.text);
           setUploadedSlides(extractedDoc.slides && extractedDoc.slides.length > 0 ? extractedDoc.slides : undefined);
+          setPdfBase64(extractedDoc.base64);
           setRawFile(file); // store raw File for Cloudinary
           setUploadedFile({
             name: extractedDoc.fileName,
             size: extractedDoc.size,
             content: extractedDoc.text,
           });
+          setShowUploadSuccessModal(true);
+          triggerHaptic.success();
         }
       };
       input.click();
@@ -158,26 +199,103 @@ export default function UploadQuiz() {
         const ext = fileName.split('.').pop()?.toLowerCase() || '';
 
         let fileText = '';
-        // For plain text files, read content directly
-        if (['txt', 'md'].includes(ext) && asset.uri) {
+        let extractedSlides: SlideBlock[] | undefined;
+
+        if (asset.uri) {
           try {
-            fileText = await FileSystem.readAsStringAsync(asset.uri, {
-              encoding: FileSystem.EncodingType.UTF8,
-            });
-          } catch {
-            fileText = '';
+            let buffer: ArrayBuffer | null = null;
+
+            // 1. Primary method: fetch(asset.uri) delegates to Android native ContentResolver and bypasses permission locks
+            try {
+              const res = await fetch(asset.uri);
+              if (['txt', 'md'].includes(ext)) {
+                fileText = await res.text();
+              } else {
+                buffer = await res.arrayBuffer();
+              }
+            } catch (fetchErr) {
+              console.warn('[UploadQuiz] fetch(uri) fallback needed:', fetchErr);
+            }
+
+            // 2. Fallback: FileSystem with copy to safe local directory if cache is locked
+            if (!buffer && !fileText) {
+              try {
+                if (['txt', 'md'].includes(ext)) {
+                  fileText = await FileSystem.readAsStringAsync(asset.uri, {
+                    encoding: FileSystem.EncodingType.UTF8,
+                  });
+                } else {
+                  const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+                    encoding: FileSystem.EncodingType.Base64,
+                  });
+                  buffer = decodeBase64ToUint8Array(base64).buffer as ArrayBuffer;
+                }
+              } catch (fsErr) {
+                console.warn('[UploadQuiz] Direct FileSystem read failed, copying to safe local directory:', fsErr);
+                const safeDest = `${FileSystem.documentDirectory || FileSystem.cacheDirectory}upload_${Date.now()}_${fileName}`;
+                await FileSystem.copyAsync({ from: asset.uri, to: safeDest });
+                if (['txt', 'md'].includes(ext)) {
+                  fileText = await FileSystem.readAsStringAsync(safeDest, {
+                    encoding: FileSystem.EncodingType.UTF8,
+                  });
+                } else {
+                  const base64 = await FileSystem.readAsStringAsync(safeDest, {
+                    encoding: FileSystem.EncodingType.Base64,
+                  });
+                  buffer = decodeBase64ToUint8Array(base64).buffer as ArrayBuffer;
+                }
+              }
+            }
+
+            let pdfBase64Data: string | undefined;
+            if (ext === 'pdf') {
+              if (buffer) {
+                try {
+                  pdfBase64Data = uint8ArrayToBase64(new Uint8Array(buffer));
+                } catch (b64Err) {
+                  console.warn('[UploadQuiz] In-memory base64 conversion notice:', b64Err);
+                }
+              } else if (asset.uri) {
+                try {
+                  pdfBase64Data = await FileSystem.readAsStringAsync(asset.uri, {
+                    encoding: FileSystem.EncodingType.Base64,
+                  });
+                } catch (fsErr) {
+                  console.warn('[UploadQuiz] Direct base64 read notice:', fsErr);
+                }
+              }
+            }
+
+            // 3. Extract structured text and slides from buffer
+            if (buffer) {
+              const extractedDoc = await documentExtractor.extractTextFromFile({
+                name: fileName,
+                size: asset.size,
+                buffer: buffer,
+              });
+              fileText = extractedDoc.text;
+              if (extractedDoc.slides && extractedDoc.slides.length > 0) {
+                extractedSlides = extractedDoc.slides;
+              }
+              if (!pdfBase64Data && extractedDoc.base64) {
+                pdfBase64Data = extractedDoc.base64;
+              }
+            }
+            setPdfBase64(pdfBase64Data);
+          } catch (readErr) {
+            console.warn('[UploadQuiz] Failed reading file content on native:', readErr);
           }
         }
 
         const baseName = fileName.replace(/\.[^/.]+$/, '');
-        const derivedTitle = baseName
+        const derivedTitle = (extractedSlides?.[0]?.title || baseName)
           .replace(/[_-]+/g, ' ')
           .replace(/\b\d+\s*slides\b/gi, '')
           .trim();
 
         setTitle(derivedTitle || baseName);
         setSourceText(fileText);
-        setUploadedSlides(undefined);
+        setUploadedSlides(extractedSlides);
         setRawFile(null);
         setUploadedFile({
           name: fileName,
@@ -185,14 +303,9 @@ export default function UploadQuiz() {
           content: fileText || `Document: ${fileName}`,
         });
 
-        // If no text could be extracted, let the user know they can type/paste content
-        if (!fileText) {
-          Alert.alert(
-            'Document Selected',
-            `"${fileName}" has been attached. For best results with ${ext.toUpperCase()} files on mobile, you can also paste key content into the text area below, or just enter a topic and let AI generate the quiz.`,
-            [{ text: 'OK' }]
-          );
-        }
+        // Trigger clean UI upload modal!
+        setShowUploadSuccessModal(true);
+        triggerHaptic.success();
       } catch (err: any) {
         Alert.alert('Error', err.message || 'Failed to pick document.');
       }
@@ -200,8 +313,15 @@ export default function UploadQuiz() {
   };
 
   const handleRemoveDocument = () => {
+    setShowRemoveConfirmModal(true);
+  };
+
+  const confirmRemoveDocument = () => {
+    setShowRemoveConfirmModal(false);
+    triggerHaptic.medium();
     setUploadedFile(null);
     setRawFile(null);
+    setPdfBase64(undefined);
     setSourceText("");
     setUploadedSlides(undefined);
     setTitle("");
@@ -254,11 +374,13 @@ export default function UploadQuiz() {
         questionTypes: selectedTypes,
         sourceDocName: uploadedFile?.name,
         sourceDocUrl: docUrl,
+        pdfBase64,
       });
 
       // Clear uploaded file & topic state so form is fresh
       setUploadedFile(null);
       setRawFile(null);
+      setPdfBase64(undefined);
       setSourceText("");
       setUploadedSlides(undefined);
       setTitle("");
@@ -526,7 +648,7 @@ export default function UploadQuiz() {
               {([
                 { key: "multiple_choice" as QuestionType, label: "Multiple choice" },
                 { key: "true_false" as QuestionType, label: "True / False" },
-                { key: "enumeration" as QuestionType, label: "Enumeration" },
+                { key: "enumeration" as QuestionType, label: "Fill in the blanks" },
               ]).map(({ key, label }) => {
                 const isActive = selectedTypes.includes(key);
                 return (
@@ -604,6 +726,120 @@ export default function UploadQuiz() {
 
       <BottomNav activeTab="Create" />
       <NotificationDropdown />
+
+      {/* ─── Upload Success Clean Modal ─── */}
+      <Modal
+        visible={showUploadSuccessModal && uploadedFile !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowUploadSuccessModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.cleanModalCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
+            <View style={styles.modalUploadIconCircle}>
+              <Ionicons name="cloud-done" size={32} color="#4F46E5" />
+            </View>
+
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Document Uploaded!</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Smarty AI has successfully parsed your document and prepared the quiz workspace.
+            </Text>
+
+            <View style={[styles.modalFileBadge, { backgroundColor: isDark ? "#0F172A" : "#F3F4F6", borderColor: colors.cardBorder }]}>
+              <Ionicons
+                name={
+                  uploadedFile?.name?.endsWith(".pdf")
+                    ? "document-text"
+                    : uploadedFile?.name?.endsWith(".ppt") || uploadedFile?.name?.endsWith(".pptx")
+                    ? "easel"
+                    : "document"
+                }
+                size={24}
+                color="#6366F1"
+                style={{ marginRight: 12 }}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modalFileName, { color: colors.text }]} numberOfLines={1}>
+                  {uploadedFile?.name}
+                </Text>
+                <Text style={[styles.modalFileSize, { color: colors.textSecondary }]}>
+                  {uploadedFile?.size} {uploadedSlides ? `• ${uploadedSlides.length} slides extracted` : "• Ready for AI"}
+                </Text>
+              </View>
+              <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+            </View>
+
+            <TouchableOpacity
+              style={styles.modalPrimaryBtn}
+              onPress={() => {
+                triggerHaptic.selection();
+                setShowUploadSuccessModal(false);
+              }}
+              activeOpacity={0.88}
+            >
+              <LinearGradient
+                colors={["#4648D4", "#6063EE", "#8455EF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.modalBtnGradient}
+              >
+                <Text style={styles.modalPrimaryBtnText}>Continue & Configure Quiz</Text>
+                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalSecondaryBtn}
+              onPress={() => {
+                setShowUploadSuccessModal(false);
+                handlePickDocument();
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.modalSecondaryBtnText, { color: colors.textSecondary }]}>Choose Different File</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Remove Document Confirmation Modal ─── */}
+      <Modal
+        visible={showRemoveConfirmModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRemoveConfirmModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.cleanModalCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
+            <View style={styles.removeIconCircle}>
+              <Ionicons name="trash-outline" size={32} color="#EF4444" />
+            </View>
+
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Remove Document?</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Are you sure you want to detach "{uploadedFile?.name}"? You can re-upload or enter a topic manually.
+            </Text>
+
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity
+                style={[styles.modalCancelBtn, { backgroundColor: isDark ? "#334155" : "#F3F4F6" }]}
+                onPress={() => setShowRemoveConfirmModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.modalCancelBtnText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalRemoveBtn}
+                onPress={confirmRemoveDocument}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalRemoveBtnText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -957,5 +1193,136 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(17, 24, 39, 0.72)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  cleanModalCard: {
+    width: "100%",
+    maxWidth: 350,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalUploadIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  removeIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 18,
+  },
+  modalFileBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    backgroundColor: "#F3F4F6",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginBottom: 20,
+  },
+  modalFileName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 2,
+  },
+  modalFileSize: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  modalPrimaryBtn: {
+    width: "100%",
+    height: 48,
+    borderRadius: 24,
+    overflow: "hidden",
+    marginBottom: 10,
+  },
+  modalBtnGradient: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalPrimaryBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  modalSecondaryBtn: {
+    paddingVertical: 8,
+  },
+  modalSecondaryBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  modalButtonsRow: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  modalCancelBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCancelBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#4B5563",
+  },
+  modalRemoveBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalRemoveBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 });

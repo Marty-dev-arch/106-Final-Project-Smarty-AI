@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   ScrollView,
+  Image,
   Text,
   TextInput,
   TouchableOpacity,
@@ -30,7 +31,6 @@ import { RootStackParamList } from '../../types/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { triggerHaptic } from '../../utils/haptics';
-import BlinkingMascot from '../../components/common/BlinkingMascot';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -119,7 +119,9 @@ export default function SignUp() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -142,14 +144,6 @@ export default function SignUp() {
     transform: [{ scale: cardScale.value }, { translateY: cardTranslateY.value }],
   }));
 
-  const getPasswordStrength = () => {
-    if (!password) return { label: '', color: 'transparent' };
-    if (password.length < 6) return { label: 'Weak (min 6 chars)', color: '#EF4444' };
-    if (password.length < 9) return { label: 'Medium', color: '#F59E0B' };
-    return { label: 'Strong', color: '#10B981' };
-  };
-  const strength = getPasswordStrength();
-
   const handleSignUp = async () => {
     triggerHaptic.medium();
     if (!email.trim() || !password.trim()) {
@@ -168,11 +162,16 @@ export default function SignUp() {
       setError('Password must be at least 6 characters.');
       return;
     }
+    if (confirmPassword && password !== confirmPassword) {
+      triggerHaptic.error();
+      setError('Passwords do not match.');
+      return;
+    }
 
     setLoading(true);
     setError(null);
     try {
-      await signUp(email.trim(), password, fullName.trim() || 'Smarty Scholar');
+      await signUp(email.trim(), password, fullName.trim() || 'Marty Goboy');
       triggerHaptic.success();
       navigation.navigate('MainOnboard1');
     } catch (err: any) {
@@ -242,51 +241,39 @@ export default function SignUp() {
             keyboardShouldPersistTaps="handled"
           >
             <Animated.View style={[styles.cardWrapper, animatedCardStyle]}>
-              {/* ─── Mascot & Brand Header ───────────────────────────────────── */}
+              {/* ─── Star Logo & Brand Header (Left Aligned - Image 3) ─── */}
               <View style={styles.heroHeader}>
-                <View style={styles.mascotHaloContainer}>
-                  <LinearGradient
-                    colors={['#6366F1', '#4F46E5', '#4338CA']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.mascotHaloGlow}
+                <View style={styles.logoSquircle}>
+                  <Image
+                    source={require('../../../assets/illustrations/smarty_logo.png')}
+                    style={styles.starLogoImage}
+                    resizeMode="contain"
                   />
-                  <View
-                    style={[
-                      styles.mascotPlate,
-                      {
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#FFFFFF',
-                        borderColor: isDark ? 'rgba(255,255,255,0.16)' : '#E2E8F0',
-                      },
-                    ]}
-                  >
-                    <BlinkingMascot size={64} style={styles.mascotAvatar} />
-                  </View>
                 </View>
 
                 <Text style={[styles.mainHeading, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>
-                  Create Account
+                  Join Smarty AI
                 </Text>
                 <Text style={[styles.subHeading, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                  Join Smarty to unlock AI quizzes, diagnostics & streaks.
+                  Create an account to save progress across devices.
                 </Text>
               </View>
 
-              {/* ─── Minimalist Form Card ────────────────────────────────────── */}
+              {/* ─── Form Card ────────────────────────────────────── */}
               <View
                 style={[
                   styles.glassFormCard,
                   {
                     backgroundColor: isDark ? '#161F30' : '#FFFFFF',
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#F1F5F9',
                     shadowColor: isDark ? '#000000' : '#64748B',
                   },
                 ]}
               >
                 {/* Full Name Input */}
                 <View style={styles.inputGroup}>
-                  <Text style={[styles.fieldLabel, { color: isDark ? '#CBD5E1' : '#475569' }]}>
-                    FULL NAME
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#334155' }]}>
+                    Full Name
                   </Text>
                   <View
                     style={[
@@ -310,7 +297,7 @@ export default function SignUp() {
                     />
                     <TextInput
                       style={[styles.iosTextInput, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
-                      placeholder="e.g. Alex Johnson"
+                      placeholder="Marty Goboy"
                       placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
                       value={fullName}
                       onChangeText={(t) => {
@@ -326,8 +313,8 @@ export default function SignUp() {
 
                 {/* Email Address Input */}
                 <View style={[styles.inputGroup, { marginTop: 14 }]}>
-                  <Text style={[styles.fieldLabel, { color: isDark ? '#CBD5E1' : '#475569' }]}>
-                    EMAIL ADDRESS
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#334155' }]}>
+                    Email Address
                   </Text>
                   <View
                     style={[
@@ -351,7 +338,7 @@ export default function SignUp() {
                     />
                     <TextInput
                       style={[styles.iosTextInput, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
-                      placeholder="name@example.com"
+                      placeholder="imu@email.com"
                       placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
                       value={email}
                       onChangeText={(t) => {
@@ -378,14 +365,12 @@ export default function SignUp() {
                 {/* Password Input */}
                 <View style={[styles.inputGroup, { marginTop: 14 }]}>
                   <View style={styles.passwordLabelRow}>
-                    <Text style={[styles.fieldLabel, { color: isDark ? '#CBD5E1' : '#475569' }]}>
-                      PASSWORD
+                    <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#334155' }]}>
+                      Password
                     </Text>
-                    {strength.label ? (
-                      <Text style={[styles.strengthText, { color: strength.color }]}>
-                        {strength.label}
-                      </Text>
-                    ) : null}
+                    <Text style={[styles.passwordHintText, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                      6+ or more characters
+                    </Text>
                   </View>
 
                   <View
@@ -430,29 +415,100 @@ export default function SignUp() {
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <Ionicons
-                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                        name={showPassword ? 'eye-outline' : 'eye-off-outline'}
                         size={20}
                         color={isDark ? '#94A3B8' : '#64748B'}
                       />
                     </TouchableOpacity>
                   </View>
-
-                  {/* ─── Error Notification Banner ─────────────────────────── */}
-                  {error && (
-                    <View
-                      style={[
-                        styles.errorBanner,
-                        {
-                          backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : '#FEF2F2',
-                          borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : '#FCA5A5',
-                        },
-                      ]}
-                    >
-                      <Ionicons name="alert-circle" size={17} color="#EF4444" style={{ marginRight: 8 }} />
-                      <Text style={styles.errorBannerText}>{error}</Text>
-                    </View>
-                  )}
                 </View>
+
+                {/* Confirm Password Input */}
+                <View style={[styles.inputGroup, { marginTop: 14 }]}>
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#334155' }]}>
+                    Confirm Password
+                  </Text>
+                  <View
+                    style={[
+                      styles.iosInputContainer,
+                      {
+                        backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+                        borderColor:
+                          focusedField === 'confirmPassword'
+                            ? '#4F46E5'
+                            : isDark
+                            ? 'rgba(255,255,255,0.1)'
+                            : '#E2E8F0',
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={20}
+                      color={focusedField === 'confirmPassword' ? '#4F46E5' : isDark ? '#64748B' : '#94A3B8'}
+                      style={styles.fieldLeftIcon}
+                    />
+                    <TextInput
+                      style={[styles.iosTextInput, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
+                      placeholder="Confirm password"
+                      placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                      value={confirmPassword}
+                      onChangeText={(t) => {
+                        setConfirmPassword(t);
+                        if (error) setError(null);
+                      }}
+                      onFocus={() => setFocusedField('confirmPassword')}
+                      onBlur={() => setFocusedField(null)}
+                      secureTextEntry={!showConfirmPassword}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity
+                      onPress={() => {
+                        triggerHaptic.selection();
+                        setShowConfirmPassword(!showConfirmPassword);
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons
+                        name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
+                        size={20}
+                        color={isDark ? '#94A3B8' : '#64748B'}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* ─── Realtime Backup Info Callout ─────────────────────────── */}
+                <View
+                  style={[
+                    styles.infoCallout,
+                    {
+                      backgroundColor: isDark ? 'rgba(79, 70, 229, 0.12)' : '#F5F3FF',
+                      borderColor: isDark ? 'rgba(99, 102, 241, 0.25)' : '#EDE9FE',
+                    },
+                  ]}
+                >
+                  <Ionicons name="shield-checkmark" size={18} color="#4F46E5" style={{ marginRight: 9 }} />
+                  <Text style={[styles.infoCalloutText, { color: isDark ? '#C7D2FE' : '#3730A3' }]}>
+                    Your dynamic questionnaire checkpoints will be backed up seamlessly in real time.
+                  </Text>
+                </View>
+
+                {/* ─── Error Notification Banner ─────────────────────────── */}
+                {error && (
+                  <View
+                    style={[
+                      styles.errorBanner,
+                      {
+                        backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : '#FEF2F2',
+                        borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : '#FCA5A5',
+                      },
+                    ]}
+                  >
+                    <Ionicons name="alert-circle" size={17} color="#EF4444" style={{ marginRight: 8 }} />
+                    <Text style={styles.errorBannerText}>{error}</Text>
+                  </View>
+                )}
 
                 {/* ─── Gradient Submit Button ──────────────────────────────── */}
                 <TouchableOpacity
@@ -474,7 +530,7 @@ export default function SignUp() {
                       </View>
                     ) : (
                       <>
-                        <Text style={styles.submitBtnText}>Create Account</Text>
+                        <Text style={styles.submitBtnText}>Create account</Text>
                         <View style={styles.submitArrowCircle}>
                           <Ionicons name="arrow-forward" size={15} color="#4F46E5" />
                         </View>
@@ -500,14 +556,6 @@ export default function SignUp() {
                     Sign in
                   </Text>
                 </TouchableOpacity>
-              </View>
-
-              {/* ─── Security Footer Note ───────────────────────────────────── */}
-              <View style={styles.footerNoteRow}>
-                <Ionicons name="shield-checkmark" size={14} color="#10B981" style={{ marginRight: 6 }} />
-                <Text style={[styles.footerNoteText, { color: isDark ? '#64748B' : '#94A3B8' }]}>
-                  Protected with Firebase 256-bit Cloud Security
-                </Text>
               </View>
             </Animated.View>
           </ScrollView>
@@ -552,55 +600,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Hero Header & Mascot
+  // Hero Header & Star Logo (Left-aligned - Image 3)
   heroHeader: {
-    alignItems: 'center',
-    marginTop: 6,
-    marginBottom: 20,
+    width: '100%',
+    alignItems: 'flex-start',
+    marginTop: 10,
+    marginBottom: 24,
   },
-  mascotHaloContainer: {
-    width: 84,
-    height: 84,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    position: 'relative',
-  },
-  mascotHaloGlow: {
-    position: 'absolute',
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    opacity: 0.35,
-  },
-  mascotPlate: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    borderWidth: 1.5,
+  logoSquircle: {
+    width: 52,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4F46E5',
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    marginBottom: 16,
+    backgroundColor: 'transparent',
   },
-  mascotAvatar: {
-    marginTop: 0,
+  starLogoImage: {
+    width: 52,
+    height: 52,
   },
   mainHeading: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
     marginBottom: 6,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   subHeading: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 16,
+    fontSize: 14.5,
+    textAlign: 'left',
+    lineHeight: 21,
     fontWeight: '400',
   },
 
@@ -626,13 +655,6 @@ const styles = StyleSheet.create({
   // Minimalist Form Card
   glassFormCard: {
     width: '100%',
-    borderRadius: 24,
-    borderWidth: 1.5,
-    padding: 20,
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 18,
-    elevation: 4,
   },
   inputGroup: {
     width: '100%',
@@ -649,10 +671,24 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 6,
   },
-  strengthText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+  passwordHintText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  infoCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 14,
+  },
+  infoCalloutText: {
+    flex: 1,
+    fontSize: 12.5,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   iosInputContainer: {
     flexDirection: 'row',

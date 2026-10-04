@@ -59,26 +59,7 @@ const ProfilePersonIcon: React.FC<{ size?: number; color?: string }> = ({
   </Svg>
 );
 
-export type EditModalTab = "personal" | "security" | "appearance" | "language";
-
-interface LanguageOption {
-  code: string;
-  name: string;
-  nativeName: string;
-  flag: string;
-}
-
-const SUPPORTED_LANGUAGES: LanguageOption[] = [
-  { code: "en", name: "English (US)", nativeName: "English", flag: "🇺🇸" },
-  { code: "fil", name: "Filipino", nativeName: "Wikang Filipino", flag: "🇵🇭" },
-  { code: "es", name: "Spanish", nativeName: "Español", flag: "🇪🇸" },
-  { code: "fr", name: "French", nativeName: "Français", flag: "🇫🇷" },
-  { code: "de", name: "German", nativeName: "Deutsch", flag: "🇩🇪" },
-  { code: "ja", name: "Japanese", nativeName: "日本語", flag: "🇯🇵" },
-  { code: "zh", name: "Chinese (Simplified)", nativeName: "简体中文", flag: "🇨🇳" },
-];
-
-const LANGUAGE_STORAGE_KEY = "@smarty_ai_app_language";
+export type EditModalTab = "personal" | "security" | "appearance";
 
 export default function ProfileSetiing() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -130,9 +111,6 @@ export default function ProfileSetiing() {
   const dailyGoalTarget = 2;
   const dailyGoalPercent = Math.min(100, Math.round((realQuizzesCompletedToday / dailyGoalTarget) * 100));
 
-  // Language state
-  const [currentLanguage, setCurrentLanguage] = useState<string>("en");
-
   // Modal State
   const [showEditModal, setShowEditModal] = useState(false);
   const [activeTab, setActiveTab] = useState<EditModalTab>("personal");
@@ -166,20 +144,6 @@ export default function ProfileSetiing() {
 
   // Logout Modal
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-
-  // Load language preference
-  useEffect(() => {
-    (async () => {
-      try {
-        const stored = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
-        if (stored) {
-          setCurrentLanguage(stored);
-        }
-      } catch (e) {
-        console.warn("Language loading error:", e);
-      }
-    })();
-  }, []);
 
   useEffect(() => {
     if (user?.photoURL) {
@@ -484,18 +448,6 @@ export default function ProfileSetiing() {
     await setThemeMode(mode);
   };
 
-  // Select Language
-  const handleSelectLanguage = async (code: string) => {
-    setCurrentLanguage(code);
-    try {
-      await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, code);
-      setModalSuccess("Language updated successfully!");
-      setTimeout(() => setModalSuccess(null), 1800);
-    } catch (e) {
-      console.warn("Language save error:", e);
-    }
-  };
-
   const handleConfirmSignOut = async () => {
     setShowLogoutModal(false);
     try {
@@ -508,9 +460,6 @@ export default function ProfileSetiing() {
       console.warn("Sign out error:", e);
     }
   };
-
-  const currentLangObj =
-    SUPPORTED_LANGUAGES.find((l) => l.code === currentLanguage) || SUPPORTED_LANGUAGES[0];
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={[styles.container, { backgroundColor: colors.background }]}>
@@ -779,26 +728,6 @@ export default function ProfileSetiing() {
 
               <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
 
-              {/* Language Setting Item */}
-              <TouchableOpacity
-                style={styles.settingRowWithIcon}
-                onPress={() => openModalWithTab("language")}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.itemIconBox, { backgroundColor: "#DCFCE7" }]}>
-                  <Ionicons name="globe-outline" size={16} color="#16A34A" />
-                </View>
-                <View style={styles.settingTextCol}>
-                  <Text style={[styles.settingMainTitle, { color: colors.text }]}>App Language</Text>
-                  <Text style={[styles.settingSubtitle, { color: colors.textMuted }]}>
-                    {currentLangObj.flag} {currentLangObj.name}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
-              </TouchableOpacity>
-
-              <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-
               {/* Daily Streak Reminder */}
               <View style={styles.settingRowWithIcon}>
                 <View style={[styles.itemIconBox, { backgroundColor: "#FEE2E2" }]}>
@@ -825,7 +754,7 @@ export default function ProfileSetiing() {
                 </View>
                 <View style={styles.settingTextCol}>
                   <Text style={[styles.settingMainTitle, { color: colors.text }]}>Sound & Haptic Feedback</Text>
-                  <Text style={[styles.settingSubtitle, { color: colors.textMuted }]}>Subtle vibrations upon quiz scoring</Text>
+                  <Text style={[styles.settingSubtitle, { color: colors.textMuted }]}>Audio chimes & haptic vibration for correct answers and rewards</Text>
                 </View>
                 <Switch
                   value={hapticFeedback}
@@ -998,34 +927,6 @@ export default function ProfileSetiing() {
                   numberOfLines={1}
                 >
                   Theme
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.tabBarPill,
-                  activeTab === "language" && [styles.tabBarPillActive, { backgroundColor: colors.card }],
-                ]}
-                onPress={() => {
-                  setActiveTab("language");
-                  setModalError(null);
-                  setModalSuccess(null);
-                }}
-              >
-                <Ionicons
-                  name="globe-outline"
-                  size={13}
-                  color={activeTab === "language" ? "#6D44F2" : colors.textMuted}
-                  style={{ marginRight: 4 }}
-                />
-                <Text
-                  style={[
-                    styles.tabBarPillText,
-                    { color: activeTab === "language" ? "#6D44F2" : colors.textMuted },
-                  ]}
-                  numberOfLines={1}
-                >
-                  Language
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1414,46 +1315,6 @@ export default function ProfileSetiing() {
                       </View>
                     )}
                   </TouchableOpacity>
-                </View>
-              )}
-
-              {/* ══════════ TAB 4: LANGUAGE ══════════ */}
-              {activeTab === "language" && (
-                <View style={styles.tabContentBlock}>
-                  <Text style={[styles.sectionSubDesc, { color: colors.textSecondary }]}>
-                    Select your preferred language for quizzes, explanations, and navigation.
-                  </Text>
-
-                  {SUPPORTED_LANGUAGES.map((lang) => {
-                    const isSelected = currentLanguage === lang.code;
-                    return (
-                      <TouchableOpacity
-                        key={lang.code}
-                        style={[
-                          styles.langCardItem,
-                          { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: colors.cardBorder },
-                          isSelected && styles.langCardItemSelected,
-                        ]}
-                        onPress={() => handleSelectLanguage(lang.code)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.langFlag}>{lang.flag}</Text>
-                        <View style={styles.langTextCol}>
-                          <Text style={[styles.langNativeName, { color: colors.text }]}>
-                            {lang.nativeName}
-                          </Text>
-                          <Text style={[styles.langEngName, { color: colors.textMuted }]}>
-                            {lang.name}
-                          </Text>
-                        </View>
-                        {isSelected && (
-                          <View style={styles.selectedBadge}>
-                            <Ionicons name="checkmark-circle" size={22} color="#6D44F2" />
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
                 </View>
               )}
             </ScrollView>
@@ -2367,39 +2228,6 @@ const styles = StyleSheet.create({
   },
   selectedBadge: {
     marginLeft: 8,
-  },
-  // Language selection cards
-  langCardItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 8,
-  },
-  langCardItemSelected: {
-    borderColor: "#6D44F2",
-    backgroundColor: "rgba(109, 68, 242, 0.05)",
-  },
-  langFlag: {
-    fontSize: 22,
-    marginRight: 12,
-  },
-  langTextCol: {
-    flex: 1,
-  },
-  langNativeName: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0F172A",
-  },
-  langEngName: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 1,
   },
   // ─── Crop Modal Styles ───
   cropModalCard: {

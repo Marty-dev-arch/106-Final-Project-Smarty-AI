@@ -2,6 +2,9 @@
 // Responsible for extracting clean, structured text from uploaded files.
 // Returns SlideBlock[] for per-slide / per-section structured content.
 
+// @ts-ignore
+import pako from 'pako';
+
 export interface SlideBlock {
   /** Slide number (1-based) or section index for non-PPTX files */
   slideIndex: number;
@@ -18,26 +21,36 @@ export interface ExtractedDocument {
   text: string;
   /** Structured per-slide blocks */
   slides: SlideBlock[];
+  /** Base64-encoded file content (used for direct multimodal Gemini PDF processing) */
+  base64?: string;
 }
+
+export type FileSource = File | { name: string; size?: number; buffer: ArrayBuffer };
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
-function readAsText(file: File): Promise<string> {
+function readAsText(file: FileSource): Promise<string> {
+  if ('buffer' in file) {
+    return Promise.resolve(new TextDecoder().decode(file.buffer));
+  }
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => resolve((e.target?.result as string) || '');
     reader.onerror = () => resolve('');
-    reader.readAsText(file);
+    reader.readAsText(file as File);
   });
 }
 
-function readAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+function readAsArrayBuffer(file: FileSource): Promise<ArrayBuffer> {
+  if ('buffer' in file) {
+    return Promise.resolve(file.buffer);
+  }
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) =>
       resolve((e.target?.result as ArrayBuffer) || new ArrayBuffer(0));
     reader.onerror = () => resolve(new ArrayBuffer(0));
-    reader.readAsArrayBuffer(file);
+    reader.readAsArrayBuffer(file as File);
   });
 }
 
@@ -70,20 +83,17 @@ function isUsefulLine(s: string): boolean {
 // ─── PPTX / PPT ──────────────────────────────────────────────────────────────
 
 /**
- * Decompress a single DEFLATE-RAW compressed chunk from a ZIP archive.
- * Falls back to returning null if DecompressionStream is unavailable.
+ * Decompress a single DEFLATE-RAW compressed chunk from a ZIP archive using pako.
  */
-async function inflateRaw(data: Uint8Array): Promise<string | null> {
-  if (typeof DecompressionStream === 'undefined') return null;
+function inflateRaw(data: Uint8Array): string | null {
   try {
-    const ds = new DecompressionStream('deflate-raw');
-    const writer = ds.writable.getWriter();
-    // Cast to Uint8Array<ArrayBuffer> for strict TS compatibility
-    writer.write(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer);
-    writer.close();
-    return await new Response(ds.readable).text();
+    return pako.inflateRaw(data, { to: 'string' });
   } catch {
-    return null;
+    try {
+      return pako.inflate(data, { to: 'string' });
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -106,7 +116,7 @@ function scanZipEntries(uint8: Uint8Array): ZipEntry[] {
       uint8[i + 3] === 0x04
     ) {
       const method = uint8[i + 8] | (uint8[i + 9] << 8);
-      const cSize =
+      let cSize =
         uint8[i + 18] |
         (uint8[i + 19] << 8) |
         (uint8[i + 20] << 16) |
@@ -115,6 +125,17 @@ function scanZipEntries(uint8: Uint8Array): ZipEntry[] {
       const extraLen = uint8[i + 28] | (uint8[i + 29] << 8);
       const name = new TextDecoder().decode(uint8.subarray(i + 30, i + 30 + nameLen));
       const dataOffset = i + 30 + nameLen + extraLen;
+
+      if (cSize === 0) {
+        // Streaming zip data descriptor: find next PK signature
+        let nextPk = dataOffset;
+        while (nextPk < uint8.length - 4) {
+          if (uint8[nextPk] === 0x50 && uint8[nextPk + 1] === 0x4b) break;
+          nextPk++;
+        }
+        cSize = nextPk - dataOffset;
+      }
+
       entries.push({ name, method, compressedSize: cSize, dataOffset });
       i = dataOffset + (cSize > 0 ? cSize : 1);
     } else {
@@ -129,7 +150,7 @@ function scanZipEntries(uint8: Uint8Array): ZipEntry[] {
  * Parses ppt/slides/slideN.xml entries and pulls <a:t> text runs.
  * Title shape detection: checks <p:ph type="title"> or <p:ph type="ctrTitle">.
  */
-async function extractPptxSlides(file: File): Promise<SlideBlock[]> {
+async function extractPptxSlides(file: FileSource): Promise<SlideBlock[]> {
   const arrayBuffer = await readAsArrayBuffer(file);
   const uint8 = new Uint8Array(arrayBuffer);
   const entries = scanZipEntries(uint8);
@@ -200,7 +221,7 @@ async function extractPptxSlides(file: File): Promise<SlideBlock[]> {
 
 // ─── DOCX ─────────────────────────────────────────────────────────────────────
 
-async function extractDocxBlocks(file: File): Promise<SlideBlock[]> {
+async function extractDocxBlocks(file: FileSource): Promise<SlideBlock[]> {
   const arrayBuffer = await readAsArrayBuffer(file);
   const uint8 = new Uint8Array(arrayBuffer);
   const entries = scanZipEntries(uint8);
@@ -254,17 +275,146 @@ async function extractDocxBlocks(file: File): Promise<SlideBlock[]> {
   return blocks;
 }
 
+function bytesToBinaryString(uint8: Uint8Array): string {
+  let res = '';
+  const chunk = 8192;
+  for (let i = 0; i < uint8.length; i += chunk) {
+    const sub = uint8.subarray(i, Math.min(i + chunk, uint8.length));
+    res += String.fromCharCode.apply(null, sub as any);
+  }
+  return res;
+}
+
+const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/**
+ * Pure JavaScript Base64 encoder for Uint8Array.
+ * Works seamlessly in React Native Hermes, Web, iOS, and Android without Buffer or btoa.
+ */
+export function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let result = '';
+  const len = bytes.length;
+  const rem = len % 3;
+  const mainLen = len - rem;
+
+  for (let i = 0; i < mainLen; i += 3) {
+    const b0 = bytes[i];
+    const b1 = bytes[i + 1];
+    const b2 = bytes[i + 2];
+    result +=
+      B64_CHARS[(b0 >> 2) & 63] +
+      B64_CHARS[((b0 << 4) | (b1 >> 4)) & 63] +
+      B64_CHARS[((b1 << 2) | (b2 >> 6)) & 63] +
+      B64_CHARS[b2 & 63];
+  }
+
+  if (rem === 1) {
+    const b0 = bytes[mainLen];
+    result +=
+      B64_CHARS[(b0 >> 2) & 63] +
+      B64_CHARS[(b0 << 4) & 63] +
+      '==';
+  } else if (rem === 2) {
+    const b0 = bytes[mainLen];
+    const b1 = bytes[mainLen + 1];
+    result +=
+      B64_CHARS[(b0 >> 2) & 63] +
+      B64_CHARS[((b0 << 4) | (b1 >> 4)) & 63] +
+      B64_CHARS[(b1 << 2) & 63] +
+      '=';
+  }
+
+  return result;
+}
+
 // ─── PDF ──────────────────────────────────────────────────────────────────────
 
-async function extractPdfBlocks(file: File): Promise<SlideBlock[]> {
-  const text = await readAsText(file);
-
-  // Heuristic: pull readable ASCII text chunks between Tj/TJ operators
-  const matches = text.match(/\(([^()]{3,200})\)\s*T[jJ]/g) || [];
+async function extractPdfBlocks(file: FileSource): Promise<SlideBlock[]> {
+  const arrayBuffer = await readAsArrayBuffer(file);
+  const uint8 = new Uint8Array(arrayBuffer);
   const lines: string[] = [];
   const seen = new Set<string>();
 
-  matches.forEach((m) => {
+  // Use raw binary-string so byte indices align 1-to-1 without Hermes TextDecoder crash
+  const rawText = bytesToBinaryString(uint8);
+
+  // 1. Inflate FlateDecode streams
+  const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+  let streamMatch: RegExpExecArray | null;
+  while ((streamMatch = streamRegex.exec(rawText)) !== null) {
+    try {
+      const startIdx = streamMatch.index + streamMatch[0].indexOf('\n') + 1;
+      const endIdx = streamMatch.index + streamMatch[0].lastIndexOf('endstream');
+      if (endIdx > startIdx) {
+        const streamBytes = uint8.subarray(startIdx, endIdx);
+        let inflated: string | null = null;
+        try {
+          inflated = pako.inflate(streamBytes, { to: 'string' });
+        } catch {
+          try {
+            inflated = pako.inflateRaw(streamBytes, { to: 'string' });
+          } catch {}
+        }
+
+        if (inflated) {
+          // A. Parenthesized literal strings: (Text) Tj
+          const textMatches = inflated.match(/\(([^()]{2,200})\)\s*T[jJ]/g) || [];
+          textMatches.forEach((m) => {
+            const clean = m.replace(/^\(/, '').replace(/\)\s*T[jJ]$/i, '').replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim();
+            const lower = clean.toLowerCase();
+            if (isUsefulLine(clean) && !seen.has(lower) && clean.length > 2) {
+              seen.add(lower);
+              lines.push(clean);
+            }
+          });
+
+          // B. TJ array text runs: [(Text 1) -10 (Text 2)] TJ -> assemble text
+          const tjMatches = inflated.match(/\[([\s\S]*?)\]\s*TJ/gi) || [];
+          tjMatches.forEach((tj) => {
+            const parts = tj.match(/\(([^()]+)\)/g);
+            if (parts && parts.length > 0) {
+              const assembled = parts
+                .map((p) => p.slice(1, -1).replace(/\\([()\\])/g, '$1'))
+                .join(' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+              const lower = assembled.toLowerCase();
+              if (isUsefulLine(assembled) && !seen.has(lower) && assembled.length > 3) {
+                seen.add(lower);
+                lines.push(assembled);
+              }
+            }
+          });
+
+          // C. Hex-encoded strings: <00480065006C...> Tj
+          const hexMatches = inflated.match(/<([0-9A-Fa-f]{8,})>\s*T[jJ]/g) || [];
+          hexMatches.forEach((h) => {
+            const hex = h.replace(/[^0-9A-Fa-f]/g, '');
+            let decoded = '';
+            if (hex.startsWith('00') && hex.length % 4 === 0) {
+              for (let k = 0; k < hex.length; k += 4) {
+                decoded += String.fromCharCode(parseInt(hex.substr(k, 4), 16));
+              }
+            } else {
+              for (let k = 0; k < hex.length; k += 2) {
+                decoded += String.fromCharCode(parseInt(hex.substr(k, 2), 16));
+              }
+            }
+            decoded = decoded.replace(/\s+/g, ' ').trim();
+            const lower = decoded.toLowerCase();
+            if (isUsefulLine(decoded) && !seen.has(lower) && decoded.length > 3) {
+              seen.add(lower);
+              lines.push(decoded);
+            }
+          });
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Look for literal text runs in uncompressed streams or catalog
+  const literalMatches = rawText.match(/\(([^()]{3,200})\)\s*T[jJ]/g) || [];
+  literalMatches.forEach((m) => {
     const clean = m
       .replace(/^\(/, '')
       .replace(/\)\s*T[jJ]$/, '')
@@ -277,6 +427,19 @@ async function extractPdfBlocks(file: File): Promise<SlideBlock[]> {
       lines.push(clean);
     }
   });
+
+  // 3. Fallback: extract meaningful sentence-like lines from raw text
+  if (lines.length === 0) {
+    const sentenceMatches = rawText.match(/[A-Z][a-zA-Z0-9\s,.-]{15,120}[.?]/g) || [];
+    sentenceMatches.slice(0, 30).forEach((m) => {
+      const clean = m.trim();
+      const lower = clean.toLowerCase();
+      if (isUsefulLine(clean) && !seen.has(lower)) {
+        seen.add(lower);
+        lines.push(clean);
+      }
+    });
+  }
 
   if (lines.length === 0) return [];
 
@@ -296,7 +459,7 @@ async function extractPdfBlocks(file: File): Promise<SlideBlock[]> {
 
 // ─── TXT / Plain text ─────────────────────────────────────────────────────────
 
-async function extractTextBlocks(file: File): Promise<SlideBlock[]> {
+async function extractTextBlocks(file: FileSource): Promise<SlideBlock[]> {
   const raw = await readAsText(file);
   const lines = raw
     .split(/\r?\n/)
@@ -325,12 +488,16 @@ export const documentExtractor = {
    * Main entry point.
    * Parses the file once and returns both flat text and structured slides.
    */
-  async extractTextFromFile(file: File): Promise<ExtractedDocument> {
+  async extractTextFromFile(file: FileSource): Promise<ExtractedDocument> {
     const fileName = file.name;
-    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+    const fileSizeMB =
+      'size' in file && typeof file.size === 'number'
+        ? (file.size / (1024 * 1024)).toFixed(1) + ' MB'
+        : '1.0 MB';
     const ext = fileName.split('.').pop()?.toLowerCase() || '';
 
     let slides: SlideBlock[] = [];
+    let base64: string | undefined;
 
     try {
       if (ext === 'pptx' || ext === 'ppt') {
@@ -339,6 +506,12 @@ export const documentExtractor = {
         slides = await extractDocxBlocks(file);
       } else if (ext === 'pdf') {
         slides = await extractPdfBlocks(file);
+        try {
+          const ab = await readAsArrayBuffer(file);
+          if (ab.byteLength > 0 && ab.byteLength < 15 * 1024 * 1024) {
+            base64 = uint8ArrayToBase64(new Uint8Array(ab));
+          }
+        } catch {}
       } else {
         slides = await extractTextBlocks(file);
       }
@@ -359,6 +532,6 @@ export const documentExtractor = {
             .join('\n\n')
         : fileName;
 
-    return { fileName, size: fileSizeMB, text, slides };
+    return { fileName, size: fileSizeMB, text, slides, base64 };
   },
 };

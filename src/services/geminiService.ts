@@ -1,7 +1,18 @@
-import { GEMINI_CONFIG } from '../config/gemini';
 import { Quiz, Question, Difficulty, QuestionType } from '../types/quiz';
 import { storageService } from './storageService';
 import { SlideBlock } from '../utils/documentExtractor';
+import { generateQuizWithGemini } from './aiQuizGenerator';
+
+function shuffleArr<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+const normKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 interface GenerateQuizParams {
   topicOrDocumentText: string;
@@ -13,24 +24,20 @@ interface GenerateQuizParams {
   timeLimitMinutes?: number;
   sourceDocName?: string;  // original filename
   sourceDocUrl?: string;   // Cloudinary URL
+  pdfBase64?: string;      // Base64-encoded PDF for direct multimodal AI processing
 }
 
 const isRealApiKey = (key?: string): boolean => {
   if (!key) return false;
   const trimmed = key.trim();
   return (
-    trimmed.length >= 15 &&
-    !trimmed.includes('your_gemini_api_key')
+    trimmed.length >= 20 &&
+    !trimmed.includes('your_gemini_api_key') &&
+    !trimmed.includes('your_api_key') &&
+    !trimmed.includes('placeholder')
   );
 };
 
-/** Real Gemini API model names — ordered by speed & availability */
-const GEMINI_MODELS = [
-  'gemini-flash-lite-latest',
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
-  'gemini-3.5-flash',
-];
 
 function deriveQuizTitle(text: string, slides?: SlideBlock[]): string {
   if (slides && slides.length > 0) {
@@ -48,155 +55,11 @@ function deriveQuizTitle(text: string, slides?: SlideBlock[]): string {
 
 // Category is determined by Gemini AI based on actual document content.
 
-function validateQuestions(rawQuestions: any[], fallbackCategory: string): Question[] {
-  const cleanQuestions: Question[] = [];
-
-  for (let i = 0; i < rawQuestions.length; i++) {
-    const q = rawQuestions[i];
-    if (!q || typeof q.prompt !== 'string' || q.prompt.trim().length < 5) continue;
-
-    const type: QuestionType = q.type === 'true_false' ? 'true_false' : q.type === 'enumeration' ? 'enumeration' : 'multiple_choice';
-
-    let options: string[] = [];
-    if (Array.isArray(q.options) && q.options.length > 0) {
-      options = q.options.map((o: any) => String(o || '').trim()).filter((o: string) => o.length > 0);
-    }
-
-    if (type === 'true_false') {
-      options = ['True', 'False'];
-    }
-
-    if (type !== 'enumeration' && options.length < 2) continue;
-
-    let correctIndexOrString: string | number = 0;
-    if (type === 'enumeration') {
-      correctIndexOrString = String(q.correctAnswer || '').trim();
-      if (!correctIndexOrString) continue;
-    } else {
-      let correctIndex = typeof q.correctAnswer === 'number' ? q.correctAnswer : 0;
-      if (correctIndex < 0 || correctIndex >= options.length) {
-        correctIndex = 0;
-      }
-      correctIndexOrString = correctIndex;
-    }
-
-    cleanQuestions.push({
-      id: `q_gemini_${Date.now()}_${i + 1}`,
-      type: type,
-      prompt: q.prompt.trim(),
-      options,
-      correctAnswer: correctIndexOrString,
-      explanation: typeof q.explanation === 'string' ? q.explanation.trim() : undefined,
-      category: typeof q.category === 'string' && q.category.trim() ? q.category.trim() : fallbackCategory,
-    });
-  }
-
-  return cleanQuestions;
-}
-
-/** Build the prompt for Gemini AI */
-function buildQuizPrompt(
-  content: string,
-  count: number,
-  difficulty: Difficulty,
-  questionTypes: QuestionType[],
-  quizTitle: string
-): string {
-  const contentExcerpt = content.slice(0, 6000);
-
-  const difficultyInstructions = {
-    easy: 'EASY MODE: Focus on direct facts, key terms, definitions, and basic recall from the text. Distractors (wrong choices) should be simple and easy to eliminate.',
-    medium: 'MEDIUM MODE: Focus on conceptual understanding, cause-and-effect, and standard application of rules/formulas. Distractors should represent plausible common missteps.',
-    hard: 'HARD MODE: Focus on multi-step problem solving, critical analysis, edge cases, and synthesis of multiple concepts. Distractors must be subtle, highly plausible, and test deep mastery.',
-  }[difficulty.toLowerCase() as 'easy' | 'medium' | 'hard'] || 'Focus on balanced conceptual understanding.';
-
-  return `You are a high-level academic professor and quiz creator. Generate EXACTLY ${count} comprehensive, accurate, and engaging quiz questions based strictly on the provided material.
-
-MATERIAL / TOPIC:
-"""
-${contentExcerpt}
-"""
-
-QUIZ CONFIGURATION:
-- Title: ${quizTitle}
-- Number of Questions: ${count}
-- Target Difficulty: ${difficulty.toUpperCase()}
-- Difficulty Baseline: ${difficultyInstructions}
-- Allowed Question Types: ${questionTypes.join(', ')}
-
-REQUIREMENTS:
-1. Every question prompt must be a complete, well-formed question matching the requested Target Difficulty.
-2. For multiple_choice questions: provide exactly 4 distinct options.
-3. For true_false questions: options MUST be ["True", "False"].
-4. For enumeration questions (fill-in-the-blanks): leave options as an empty array [] and set correctAnswer to the exact string answer.
-5. correctAnswer must be the 0-based index of the correct option (0, 1, 2, or 3) for multiple_choice/true_false, OR the exact string answer for enumeration.
-6. Provide a clear 1-2 sentence explanation explaining why the correct answer is right.
-7. Return ONLY a valid JSON object matching this schema (no markdown fences, no extra text):
-
-{
-  "title": "${quizTitle}",
-  "category": "string",
-  "description": "string",
-  "questions": [
-    {
-      "type": "multiple_choice",
-      "prompt": "Question text here?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctAnswer": 0,
-      "explanation": "Explanation here.",
-      "category": "string"
-    }
-  ]
-}`;
-}
-
-/** Try models in order; return the first successful Response */
-async function fetchGemini(
-  apiKey: string,
-  body: object,
-  totalTimeoutMs = 45000
-): Promise<Response | null> {
-  const overallController = new AbortController();
-  const overallTimer = setTimeout(() => overallController.abort(), totalTimeoutMs);
-
-  for (const model of GEMINI_MODELS) {
-    if (overallController.signal.aborted) break;
-
-    const modelController = new AbortController();
-    const modelTimer = setTimeout(() => modelController.abort(), 25000);
-
-    const url = `${GEMINI_CONFIG.endpoint}/${model}:generateContent?key=${apiKey}`;
-
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify(body),
-        signal: modelController.signal,
-      });
-      clearTimeout(modelTimer);
-      console.log(`[fetchGemini] ${model} → ${res.status}`);
-      if (res.ok) {
-        clearTimeout(overallTimer);
-        return res;
-      }
-    } catch {
-      clearTimeout(modelTimer);
-      // Try next model
-    }
-  }
-
-  clearTimeout(overallTimer);
-  return null;
-}
 
 
 export const geminiService = {
   async generateQuiz(params: GenerateQuizParams): Promise<Quiz> {
-    const { topicOrDocumentText, slides, count, difficulty, questionTypes, title, sourceDocName, sourceDocUrl } = params;
+    const { topicOrDocumentText, slides, count, difficulty, questionTypes, title, sourceDocName, sourceDocUrl, pdfBase64 } = params;
     const quizTitle = title || deriveQuizTitle(topicOrDocumentText, slides);
 
     // ── Build content from slides (actual per-slide text) or raw text ─────────
@@ -210,75 +73,165 @@ export const geminiService = {
       }
     }
 
-    // ── Call Gemini AI with the real document content ─────────────────────────
+    const hasDocumentContent = Boolean(pdfBase64) || (slides && slides.length > 0) || content.length > 40;
+
+    // ── Call Gemini AI with the real document content if key is valid ─────────
     const apiKey = await storageService.getGeminiApiKey();
-    console.log(`[geminiService] Sending ${content.length} chars to Gemini | title: "${quizTitle}" | preview: "${content.slice(0, 200)}"`);
-    if (isRealApiKey(apiKey) && content.length > 5) {
+    console.log(`[geminiService] Preparing quiz for "${quizTitle}" | Has real key: ${isRealApiKey(apiKey)} | Content length: ${content.length} | Has PDF Base64: ${Boolean(pdfBase64)}`);
+
+    if (isRealApiKey(apiKey) && (content.length > 5 || Boolean(pdfBase64))) {
       try {
-        const prompt = buildQuizPrompt(content, count, difficulty, questionTypes, quizTitle);
-        const body = {
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: 'application/json',
-          },
-        };
-
-        const response = await fetchGemini(apiKey!, body, 45000);
-
-        if (response && response.ok) {
-          const data = await response.json();
-          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-          if (rawText) {
-            let parsed: any = null;
-            try {
-              const clean = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-              parsed = JSON.parse(clean);
-            } catch {
-              // JSON parse failed — fall through to fallback
-            }
-
-            if (parsed?.questions && Array.isArray(parsed.questions)) {
-              const validated = validateQuestions(parsed.questions, parsed.category || 'General Knowledge');
-              if (validated.length > 0) {
-                return {
-                  id: 'quiz_' + Date.now(),
-                  title: parsed.title || quizTitle,
-                  description: parsed.description || `AI-generated quiz on ${quizTitle} (${difficulty})`,
-                  category: parsed.category || 'General Knowledge',
-                  difficulty,
-                  questionTypes,
-                  questionsCount: validated.length,
-                  questions: validated,
-                  createdAt: new Date().toISOString(),
-                  timesTaken: 0,
-                  timeLimitMinutes: params.timeLimitMinutes || 5,
-                  sourceDocName: sourceDocName,
-                  sourceDocUrl: sourceDocUrl,
-                };
-              }
-            }
-          }
+        const ai = await generateQuizWithGemini({
+          apiKey: apiKey!,
+          content: content.length > 5 ? content : `Document: ${quizTitle}`,
+          count,
+          difficulty,
+          questionTypes,
+          title: quizTitle,
+          pdfBase64,
+        });
+        if (ai && ai.questions.length > 0) {
+          return {
+            id: 'quiz_' + Date.now(),
+            title: title || ai.title || quizTitle,
+            description: ai.description || `AI-generated quiz on ${quizTitle} (${difficulty})`,
+            category: ai.category || 'General Knowledge',
+            difficulty,
+            questionTypes,
+            questionsCount: ai.questions.length,
+            questions: ai.questions,
+            createdAt: new Date().toISOString(),
+            timesTaken: 0,
+            timeLimitMinutes: params.timeLimitMinutes || 5,
+            sourceDocName,
+            sourceDocUrl,
+          };
         }
-        const hasDocumentContent = (slides && slides.length > 0) || topicOrDocumentText.trim().length > 100;
-
-        // If we got back null (all models returned non-OK), that's still a failure
-        if (!response && hasDocumentContent) {
-          throw new Error('Gemini AI is currently unavailable (503). Please try again in a moment.');
-        }
-
+        console.warn('[geminiService] Gemini returned no usable questions — using local fallback.');
       } catch (err) {
-        console.warn('[geminiService] Gemini call failed:', err);
-        const hasDocumentContent = (slides && slides.length > 0) || topicOrDocumentText.trim().length > 100;
-        if (hasDocumentContent) {
-          throw err; // surface the real error to the UI
-        }
+        console.warn('[geminiService] Gemini call failed, falling back to local quiz generator:', err);
       }
+    } else {
+      console.warn('[geminiService] No valid Gemini API key (EXPO_PUBLIC_GEMINI_API_KEY) — using local fallback.');
     }
 
-    // Fallback only for bare topic-only quizzes (no file content)
+    // ── Resilient Fallback: If document content exists, extract from document; otherwise smart topic pool
+    if (hasDocumentContent) {
+      console.log(`[geminiService] Generating quiz directly from document content for "${quizTitle}"`);
+      return geminiService.generateDocumentFallback(params);
+    }
+
     return geminiService.generateSmartFallback(params);
+  },
+
+  generateDocumentFallback(params: GenerateQuizParams): Quiz {
+    const { topicOrDocumentText, slides, count, difficulty, questionTypes, title, sourceDocName, sourceDocUrl } = params;
+    const quizTitle = title || deriveQuizTitle(topicOrDocumentText, slides);
+
+    // 1. Collect meaningful, de-duplicated sentences (skip headings & questions)
+    const rawLines: string[] = [];
+    if (slides && slides.length > 0) {
+      for (const s of slides) rawLines.push(...s.lines);
+    } else if (topicOrDocumentText) {
+      rawLines.push(...topicOrDocumentText.split(/[\r\n]+|[.!]\s+/));
+    }
+    const seen = new Set<string>();
+    const facts: string[] = [];
+    for (const l of rawLines) {
+      const t = l.replace(/^[\s•\-*\d.)]+/, '').trim();
+      const k = normKey(t);
+      if (t.length < 25 || t.length > 300 || t.endsWith('?') || /click to edit|^slide \d/i.test(t)) continue;
+      if (t.split(/\s+/).length < 5 || seen.has(k)) continue;
+      seen.add(k);
+      facts.push(t);
+    }
+
+    // 2. Extract "Term: definition" / "Term is definition" pairs
+    const defs: { term: string; def: string }[] = [];
+    const usedFacts = new Set<string>();
+    for (const f of facts) {
+      const m = f.match(/^([A-Za-z][\w\s()\-/]{1,40}?)\s*(?::|\s[–—-]\s|\s(?:is|are|refers to|means)\s)\s*(.{12,})$/);
+      if (m && m[1].trim().split(/\s+/).length <= 5) {
+        defs.push({ term: m[1].trim(), def: m[2].trim().replace(/\.$/, '') });
+        usedFacts.add(f);
+      }
+    }
+    const plainFacts = shuffleArr(facts.filter((f) => !usedFacts.has(f)));
+    const defPool = shuffleArr(defs);
+    const allTerms = defs.map((d) => d.term);
+
+    const category = quizTitle;
+    const cleanQuestions: Question[] = [];
+    const mkId = () => `q_doc_${Date.now()}_${cleanQuestions.length + 1}`;
+
+    // 3. Build questions — each fact/definition is used at most once
+    let guard = 0;
+    while (cleanQuestions.length < count && guard++ < count * 4) {
+      const qType: QuestionType = questionTypes[cleanQuestions.length % questionTypes.length] || 'multiple_choice';
+
+      if ((qType === 'multiple_choice' || qType === 'enumeration') && defPool.length > 0) {
+        const d = defPool.shift()!;
+        const wrong = shuffleArr(allTerms.filter((t) => normKey(t) !== normKey(d.term))).slice(0, 3);
+        if (qType === 'multiple_choice' && wrong.length === 3) {
+          const options = shuffleArr([d.term, ...wrong]);
+          cleanQuestions.push({
+            id: mkId(), type: 'multiple_choice',
+            prompt: `Which term matches this description: "${d.def}"?`,
+            options, correctAnswer: options.indexOf(d.term),
+            explanation: `${d.term}: ${d.def}.`, category,
+          });
+        } else {
+          cleanQuestions.push({
+            id: mkId(), type: 'enumeration',
+            prompt: `_____ : ${d.def}.`,
+            options: [], correctAnswer: d.term,
+            explanation: `${d.term}: ${d.def}.`, category,
+          });
+        }
+        continue;
+      }
+
+      // True/False (or any type when no definitions are left)
+      if (defPool.length >= 2 && cleanQuestions.length % 2 === 1) {
+        // False statement: pair a term with someone else's definition
+        const a = defPool.shift()!;
+        const b = defPool.shift()!;
+        cleanQuestions.push({
+          id: mkId(), type: 'true_false',
+          prompt: `${a.term} refers to: ${b.def}.`,
+          options: ['True', 'False'], correctAnswer: 1,
+          explanation: `False. ${a.term}: ${a.def}. The description given belongs to ${b.term}.`, category,
+        });
+        continue;
+      }
+      const fact = plainFacts.shift() || (defPool.length ? (() => { const d = defPool.shift()!; return `${d.term} refers to ${d.def}`; })() : undefined);
+      if (!fact) break; // material exhausted — better fewer questions than repeats
+      cleanQuestions.push({
+        id: mkId(), type: 'true_false',
+        prompt: `${fact.replace(/\.$/, '')}.`,
+        options: ['True', 'False'], correctAnswer: 0,
+        explanation: `True — this is stated in the study material.`, category,
+      });
+    }
+    if (cleanQuestions.length === 0) {
+      return geminiService.generateSmartFallback(params);
+    }
+
+    return {
+      id: 'quiz_' + Date.now(),
+      title: quizTitle,
+      description: `Generated from document content (${difficulty.toUpperCase()})`,
+      category,
+      difficulty,
+      questionTypes,
+      questionsCount: cleanQuestions.length,
+      questions: cleanQuestions,
+      createdAt: new Date().toISOString(),
+      timesTaken: 0,
+      timeLimitMinutes: params.timeLimitMinutes || 5,
+      sourceDocName,
+      sourceDocUrl,
+    };
   },
 
   generateSmartFallback(params: GenerateQuizParams): Quiz {
@@ -620,15 +573,17 @@ export const geminiService = {
       ];
     }
 
-    // Expand pool up to count requested
-    const finalQuestions: Question[] = [];
-    for (let i = 0; i < count; i++) {
-      const template = samplePool[i % samplePool.length];
-      finalQuestions.push({
-        ...template,
-        id: `q_smart_${Date.now()}_${i + 1}`,
+    // Use each pool question at most once (no repeats), with shuffled order and options
+    const finalQuestions: Question[] = shuffleArr(samplePool)
+      .slice(0, Math.min(count, samplePool.length))
+      .map((template, i) => {
+        if (template.type === 'multiple_choice' && typeof template.correctAnswer === 'number') {
+          const correct = template.options[template.correctAnswer];
+          const options = shuffleArr(template.options);
+          return { ...template, options, correctAnswer: options.indexOf(correct), id: `q_smart_${Date.now()}_${i + 1}` };
+        }
+        return { ...template, id: `q_smart_${Date.now()}_${i + 1}` };
       });
-    }
 
     return {
       id: 'quiz_' + Date.now(),

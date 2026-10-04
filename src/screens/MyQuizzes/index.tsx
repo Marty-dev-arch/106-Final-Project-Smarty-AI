@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Image,
   RefreshControl,
+  Alert,
+  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -27,7 +29,7 @@ import THEME from "../../config/theme";
 export default function MyQuizzes() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, refreshUser } = useAuth();
-  const { quizzes, mistakes, startQuiz, isLoading, refreshData } = useQuiz();
+  const { quizzes, mistakes, startQuiz, deleteQuiz, isLoading, refreshData } = useQuiz();
   const { colors, isDark } = useTheme();
   const [filter, setFilter] = useState<"all" | "inProgress" | "completed" | "unstarted">("all");
   const [showSearch, setShowSearch] = useState(false);
@@ -46,6 +48,10 @@ export default function MyQuizzes() {
     }
   }, [refreshData, refreshUser]);
 
+  const [quizToDelete, setQuizToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [showDeleteSuccessModal, setShowDeleteSuccessModal] = useState(false);
+  const [deletedQuizTitle, setDeletedQuizTitle] = useState("");
+
   const handleOpenQuiz = (quizId: string) => {
     triggerHaptic.medium();
     const q = quizzes.find((item) => item.id === quizId) || quizzes[0];
@@ -53,6 +59,11 @@ export default function MyQuizzes() {
       startQuiz(q);
       navigation.navigate("QuizTaking", { quizId: q.id });
     }
+  };
+
+  const handleDeleteQuiz = (quizId: string, title: string) => {
+    triggerHaptic.medium();
+    setQuizToDelete({ id: quizId, title });
   };
 
   const filteredQuizzes = useMemo(() => {
@@ -256,9 +267,6 @@ export default function MyQuizzes() {
                 activeOpacity={0.88}
               >
                 <View style={styles.cardTopRow}>
-                  <View style={[styles.iconBox, isDark && { backgroundColor: "#1E1B4B" }]}>
-                    <Ionicons name="book-outline" size={20} color={THEME.colors.primary} />
-                  </View>
                   <View style={styles.cardHeaderInfo}>
                     <View style={styles.nameBadgeRow}>
                       <Text style={[styles.quizName, { color: colors.text }]} numberOfLines={1}>
@@ -303,7 +311,20 @@ export default function MyQuizzes() {
                       {hasScore ? "Score Mastered" : "Tap to start quiz"}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <TouchableOpacity
+                      onPress={(e: any) => {
+                        e?.stopPropagation?.();
+                        handleDeleteQuiz(quiz.id, quiz.title);
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      style={styles.deleteQuizBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                    <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                  </View>
                 </View>
               </TouchableOpacity>
             );
@@ -350,6 +371,74 @@ export default function MyQuizzes() {
       </TabSlideWrapper>
 
       <BottomNav activeTab="Quizzes" />
+
+      {/* ─── Clean Delete Quiz Modal ─── */}
+      <Modal
+        visible={quizToDelete !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setQuizToDelete(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.cleanModalCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
+            <View style={styles.deleteIconCircle}>
+              <Ionicons name="trash-outline" size={32} color="#EF4444" />
+            </View>
+
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Delete Quiz?</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Are you sure you want to delete "{quizToDelete?.title}"? All questions, attempts, and diagnostic reviews for this quiz will be permanently removed.
+            </Text>
+
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity
+                style={[styles.modalCancelBtn, { backgroundColor: isDark ? "#334155" : "#F3F4F6" }]}
+                onPress={() => setQuizToDelete(null)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.modalCancelBtnText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalDeleteBtn}
+                onPress={async () => {
+                  if (!quizToDelete) return;
+                  const id = quizToDelete.id;
+                  const title = quizToDelete.title;
+                  setQuizToDelete(null);
+                  triggerHaptic.success();
+                  await deleteQuiz(id);
+                  setDeletedQuizTitle(title);
+                  setShowDeleteSuccessModal(true);
+                  setTimeout(() => {
+                    setShowDeleteSuccessModal(false);
+                  }, 2000);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalDeleteBtnText}>Delete Quiz</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Quiz Deleted Success Toast/Modal ─── */}
+      <Modal
+        visible={showDeleteSuccessModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDeleteSuccessModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.cleanSuccessToast, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
+            <Ionicons name="checkmark-circle" size={24} color="#10B981" style={{ marginRight: 8 }} />
+            <Text style={[styles.toastText, { color: colors.text }]}>
+              Quiz "{deletedQuizTitle}" deleted
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -571,6 +660,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingTop: 10,
   },
+  deleteQuizBtn: {
+    padding: 6,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   footerLeft: {
     flexDirection: "row",
     alignItems: "center",
@@ -685,5 +780,97 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(17, 24, 39, 0.72)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  cleanModalCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  deleteIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  modalButtonsRow: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  modalCancelBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCancelBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#4B5563",
+  },
+  modalDeleteBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalDeleteBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  cleanSuccessToast: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  toastText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
   },
 });

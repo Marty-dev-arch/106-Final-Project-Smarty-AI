@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   StyleSheet,
   Dimensions,
@@ -24,7 +25,6 @@ import Animated, {
 import { RootStackParamList } from "../../types/navigation";
 import { useAuth } from "../../context/AuthContext";
 import { triggerHaptic } from "../../utils/haptics";
-import BlinkingMascot from "../../components/common/BlinkingMascot";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -43,33 +43,25 @@ export default function Welcome() {
     }
   }, [user]);
 
-  // Clean Entrance animations
-  const heroScale = useSharedValue(0.9);
+  // Entrance animations
+  const heroScale = useSharedValue(0.92);
   const heroOpacity = useSharedValue(0);
-  const contentTranslateY = useSharedValue(20);
-  const contentOpacity = useSharedValue(0);
+  const heroTranslateY = useSharedValue(20);
   const buttonsTranslateY = useSharedValue(24);
   const buttonsOpacity = useSharedValue(0);
 
   useEffect(() => {
     heroScale.value = withSpring(1, { damping: 16, stiffness: 200 });
     heroOpacity.value = withTiming(1, { duration: 450 });
-
-    contentTranslateY.value = withSpring(0, { damping: 16, stiffness: 180 });
-    contentOpacity.value = withTiming(1, { duration: 550, easing: Easing.out(Easing.quad) });
+    heroTranslateY.value = withSpring(0, { damping: 16, stiffness: 180 });
 
     buttonsTranslateY.value = withSpring(0, { damping: 15, stiffness: 160 });
-    buttonsOpacity.value = withTiming(1, { duration: 650 });
+    buttonsOpacity.value = withTiming(1, { duration: 600 });
   }, []);
 
   const heroAnimStyle = useAnimatedStyle(() => ({
     opacity: heroOpacity.value,
-    transform: [{ scale: heroScale.value }],
-  }));
-
-  const contentAnimStyle = useAnimatedStyle(() => ({
-    opacity: contentOpacity.value,
-    transform: [{ translateY: contentTranslateY.value }],
+    transform: [{ scale: heroScale.value }, { translateY: heroTranslateY.value }],
   }));
 
   const buttonsAnimStyle = useAnimatedStyle(() => ({
@@ -79,11 +71,11 @@ export default function Welcome() {
 
   return (
     <View style={styles.root}>
-      {/* Crisp, modern light background with very subtle ambient top tint */}
+      {/* Background Subtle Gradient */}
       <LinearGradient
-        colors={["#F8F7FF", "#FFFFFF", "#FFFFFF"]}
+        colors={["#F8FAFC", "#EEF2FF", "#F1F5F9"]}
         start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 0.45 }}
+        end={{ x: 0.5, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
 
@@ -91,54 +83,47 @@ export default function Welcome() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: Math.max(insets.top + 32, 64),
-            paddingBottom: Math.max(insets.bottom + 24, 36),
+            paddingTop: Math.max(insets.top + 20, 48),
+            paddingBottom: Math.max(insets.bottom + 20, 32),
           },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ─── Hero Mascot Block ─────────────────────────────────────────── */}
-        <Animated.View style={[styles.heroBlock, heroAnimStyle]}>
-          <View style={styles.mascotContainer}>
-            <BlinkingMascot size={90} />
-          </View>
+        {/* ─── Purple Hero Container ────────────────────────────────────────── */}
+        <Animated.View style={[styles.heroCard, heroAnimStyle]}>
+          <LinearGradient
+            colors={["#6366F1", "#4F46E5", "#3730A3"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroGradient}
+          >
+            {/* Star Logo in White Rounded Square */}
+            <View style={styles.mascotSquare}>
+              <Image
+                source={require('../../../assets/illustrations/smarty_logo.png')}
+                style={{ width: 72, height: 72 }}
+                resizeMode="contain"
+              />
+            </View>
+
+            {/* Smarty AI Title */}
+            <Text style={styles.brandTitle}>Smarty AI</Text>
+
+            {/* Subtitle / Tagline */}
+            <Text style={styles.heroTagline}>
+              Turn any document into a quiz you can actually learn from.
+            </Text>
+
+            {/* FAST QUIZ GENERATION Capsule Pill */}
+            <View style={styles.capsulePill}>
+              <Text style={styles.capsulePillText}>FAST QUIZ GENERATION</Text>
+            </View>
+          </LinearGradient>
         </Animated.View>
 
-        {/* ─── Hero Typography Block ───────────────────────────────────────── */}
-        <Animated.View style={[styles.textBlock, contentAnimStyle]}>
-          <Text style={styles.brandTitle}>Smarty AI</Text>
-          <Text style={styles.heroTagline}>
-            Turn any document, slide deck, or lecture notes into interactive quizzes you'll actually master.
-          </Text>
-
-          {/* ─── Clean Modern Feature Pills (Light Theme) ───────────────────── */}
-          <View style={styles.featuresRow}>
-            <View style={[styles.featurePill, { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" }]}>
-              <View style={[styles.featureIconWrap, { backgroundColor: "#EDE9FE" }]}>
-                <Ionicons name="document-text" size={15} color="#6D28D9" />
-              </View>
-              <Text style={[styles.featureText, { color: "#4C1D95" }]}>Notes to Quiz</Text>
-            </View>
-
-            <View style={[styles.featurePill, { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" }]}>
-              <View style={[styles.featureIconWrap, { backgroundColor: "#FEF3C7" }]}>
-                <Ionicons name="flame" size={15} color="#D97706" />
-              </View>
-              <Text style={[styles.featureText, { color: "#78350F" }]}>Streak Sync</Text>
-            </View>
-
-            <View style={[styles.featurePill, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
-              <View style={[styles.featureIconWrap, { backgroundColor: "#D1FAE5" }]}>
-                <Ionicons name="trending-up" size={15} color="#059669" />
-              </View>
-              <Text style={[styles.featureText, { color: "#064E3B" }]}>Mastery Score</Text>
-            </View>
-          </View>
-        </Animated.View>
-
-        {/* ─── Bottom Actions Section ───────────────────────────────────────── */}
+        {/* ─── Bottom Action Buttons ────────────────────────────────────────── */}
         <Animated.View style={[styles.actionsSection, buttonsAnimStyle]}>
-          {/* Primary CTA Button: Get Started Free */}
+          {/* Create account → */}
           <TouchableOpacity
             onPress={() => {
               triggerHaptic.selection();
@@ -147,18 +132,11 @@ export default function Welcome() {
             activeOpacity={0.88}
             style={styles.primaryBtn}
           >
-            <LinearGradient
-              colors={["#6366F1", "#4F46E5"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.primaryGradient}
-            >
-              <Text style={styles.primaryBtnText}>Get Started Free</Text>
-              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={styles.arrowIcon} />
-            </LinearGradient>
+            <Text style={styles.primaryBtnText}>Create account</Text>
+            <Ionicons name="arrow-forward" size={17} color="#4F46E5" style={styles.arrowIcon} />
           </TouchableOpacity>
 
-          {/* Secondary CTA: Sign In */}
+          {/* Sign in */}
           <TouchableOpacity
             style={styles.secondaryBtn}
             onPress={() => {
@@ -167,14 +145,8 @@ export default function Welcome() {
             }}
             activeOpacity={0.8}
           >
-            <Text style={styles.secondaryBtnText}>I already have an account</Text>
+            <Text style={styles.secondaryBtnText}>Sign in</Text>
           </TouchableOpacity>
-
-          {/* Terms Footer */}
-          <Text style={styles.termsNote}>
-            By continuing, you agree to Smarty's{" "}
-            <Text style={styles.termsLink}>Terms & Privacy Policy</Text>
-          </Text>
         </Animated.View>
       </ScrollView>
     </View>
@@ -193,81 +165,71 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
-  // Hero Mascot
-  heroBlock: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 12,
-    marginBottom: 24,
-  },
-  mascotContainer: {
-    width: 124,
-    height: 124,
-    borderRadius: 62,
-    backgroundColor: "#F5F3FF",
-    borderWidth: 2,
-    borderColor: "#E0E7FF",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#6366F1",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 6,
-  },
-
-  // Typography Block
-  textBlock: {
-    alignItems: "center",
+  heroCard: {
     width: "100%",
-    paddingHorizontal: 8,
+    maxWidth: 380,
+    borderRadius: 28,
+    overflow: "hidden",
+    shadowColor: "#4F46E5",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.24,
+    shadowRadius: 24,
+    elevation: 8,
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  heroGradient: {
+    paddingVertical: 32,
+    paddingHorizontal: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mascotSquare: {
+    width: 92,
+    height: 92,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    marginBottom: 20,
   },
   brandTitle: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: "800",
-    color: "#0F172A",
-    letterSpacing: -0.8,
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
     textAlign: "center",
     marginBottom: 10,
   },
   heroTagline: {
-    fontSize: 15,
-    color: "#64748B",
+    fontSize: 14.5,
+    color: "rgba(255, 255, 255, 0.85)",
     textAlign: "center",
     lineHeight: 22,
     fontWeight: "400",
-    maxWidth: 320,
-    marginBottom: 24,
+    maxWidth: 300,
+    marginBottom: 20,
   },
-
-  // Clean Feature Pills Row
-  featuresRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 8,
-    width: "100%",
-  },
-  featurePill: {
+  capsulePill: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
     borderWidth: 1,
-    borderRadius: 24,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    gap: 6,
+    paddingVertical: 6,
   },
-  featureIconWrap: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  featureText: {
-    fontSize: 12.5,
-    fontWeight: "700",
-    letterSpacing: -0.1,
+  capsulePillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.8,
   },
 
   // Actions Section
@@ -275,61 +237,45 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 380,
     alignItems: "center",
-    marginTop: 36,
+    marginTop: 10,
   },
   primaryBtn: {
     width: "100%",
     height: 52,
-    borderRadius: 14,
-    overflow: "hidden",
-    marginBottom: 12,
-    shadowColor: "#6366F1",
-    shadowOpacity: 0.28,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 14,
-    elevation: 6,
-  },
-  primaryGradient: {
-    flex: 1,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 20,
+    marginBottom: 12,
+    shadowColor: "#000000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 2,
   },
   primaryBtnText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#4F46E5",
     letterSpacing: -0.2,
   },
   arrowIcon: {
-    marginLeft: 8,
+    marginLeft: 6,
   },
   secondaryBtn: {
     width: "100%",
-    height: 50,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#F8FAFC",
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: "#EEF2FF",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
   },
   secondaryBtnText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
-    color: "#334155",
+    color: "#1E1B4B",
     letterSpacing: -0.2,
-  },
-  termsNote: {
-    fontSize: 12,
-    color: "#94A3B8",
-    textAlign: "center",
-    lineHeight: 17,
-  },
-  termsLink: {
-    color: "#6366F1",
-    fontWeight: "600",
   },
 });

@@ -29,6 +29,29 @@ function getEffectiveUid(uid?: string): string | undefined {
   return uid || auth?.currentUser?.uid || undefined;
 }
 
+/**
+ * Recursively removes all `undefined` fields from an object or array.
+ * Firestore strictly forbids `undefined` and throws an error if any field has it.
+ */
+function sanitizeFirestoreData<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return null as any;
+  }
+  if (Array.isArray(data)) {
+    return data.map((item) => sanitizeFirestoreData(item)) as any;
+  }
+  if (typeof data === 'object' && !(data instanceof Date)) {
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        cleaned[key] = sanitizeFirestoreData(value);
+      }
+    }
+    return cleaned as any;
+  }
+  return data;
+}
+
 // ─── User-scoped collection path helpers ─────────────────────────────────────
 
 /**
@@ -106,7 +129,7 @@ export const quizService = {
     if (isFirebaseInitialized && db && effUid) {
       try {
         const docRef = doc(db, 'users', effUid, 'quizzes', quiz.id);
-        await setDoc(docRef, quiz, { merge: true });
+        await setDoc(docRef, sanitizeFirestoreData(quiz), { merge: true });
         console.log('[quizService] Quiz saved to Firestore:', quiz.id);
       } catch (err) {
         console.warn('[quizService] Firestore save error:', err);
@@ -123,8 +146,11 @@ export const quizService = {
       try {
         const docRef = userQuizDocPath(this.currentUid, quiz.id);
         if (docRef) {
-          setDoc(docRef, { ...quiz, updatedAt: new Date().toISOString() }, { merge: true })
-            .catch((e) => console.warn('[quizService] Firestore update notice:', e));
+          setDoc(
+            docRef,
+            sanitizeFirestoreData({ ...quiz, updatedAt: new Date().toISOString() }),
+            { merge: true }
+          ).catch((e) => console.warn('[quizService] Firestore update notice:', e));
         }
       } catch (err) {
         console.warn('[quizService] Firestore update error:', err);
@@ -132,17 +158,33 @@ export const quizService = {
     }
   },
 
+  /**
+   * Delete a quiz by ID from local storage and Firestore.
+   */
+  async deleteQuiz(quizId: string): Promise<void> {
+    await storageService.deleteQuiz(quizId);
+    const effUid = getEffectiveUid(this.currentUid);
+    if (isFirebaseInitialized && db && effUid) {
+      try {
+        const docRef = doc(db, 'users', effUid, 'quizzes', quizId);
+        await deleteDoc(docRef);
+      } catch (err) {
+        console.warn('[quizService] Firestore delete error:', err);
+      }
+    }
+  },
+
   async recordQuizAttempt(
     attempt: QuizAttempt,
     passedQuiz?: Quiz
-  ): Promise<{ updatedStreak: number; newAvgScore: number }> {
+  ): Promise<{ updatedStreak: number; newAvgScore: number; newlyUnlockedMedals: Medal[] }> {
     // 1. Save attempt locally and to Firestore
     await storageService.saveAttempt(attempt);
 
     const effUid = getEffectiveUid(this.currentUid);
     if (isFirebaseInitialized && db && effUid) {
       try {
-        setDoc(doc(db, 'users', effUid, 'attempts', attempt.id), attempt, { merge: true }).catch(() => {});
+        setDoc(doc(db, 'users', effUid, 'attempts', attempt.id), sanitizeFirestoreData(attempt), { merge: true }).catch(() => {});
       } catch {}
     }
 
@@ -237,7 +279,7 @@ export const quizService = {
       // Sync user profile to Firestore in background
       if (isFirebaseInitialized && db && effUid) {
         try {
-          setDoc(doc(db, 'users', effUid), updatedUser, { merge: true } as any).catch(() => {});
+          setDoc(doc(db, 'users', effUid), sanitizeFirestoreData(updatedUser), { merge: true } as any).catch(() => {});
         } catch {
           // Local save already done
         }
@@ -246,6 +288,7 @@ export const quizService = {
 
     // 4. Check & update medals (Achievements) dynamically based on XP, Quizzes, Streak, and Score
     const medals = await storageService.getMedals();
+    const newlyUnlockedMedals: Medal[] = [];
     const updatedMedals = medals.map((m) => {
       let progress = m.progress || 0;
       let unlocked = m.unlocked || false;
@@ -271,6 +314,10 @@ export const quizService = {
         unlocked = newTotalXP >= req;
       }
 
+      if (!m.unlocked && unlocked) {
+        newlyUnlockedMedals.push({ ...m, progress, unlocked });
+      }
+
       return {
         ...m,
         progress,
@@ -282,11 +329,11 @@ export const quizService = {
     // Sync medals to Firestore for cross-device retrieval
     if (isFirebaseInitialized && db && effUid) {
       try {
-        setDoc(doc(db, 'users', effUid, 'data', 'medals'), { list: updatedMedals }, { merge: true }).catch(() => {});
+        setDoc(doc(db, 'users', effUid, 'data', 'medals'), sanitizeFirestoreData({ list: updatedMedals }), { merge: true }).catch(() => {});
       } catch {}
     }
 
-    return { updatedStreak, newAvgScore };
+    return { updatedStreak, newAvgScore, newlyUnlockedMedals };
   },
 
   async getAttempts(): Promise<QuizAttempt[]> {

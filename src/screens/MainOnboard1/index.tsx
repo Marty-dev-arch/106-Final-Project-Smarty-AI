@@ -35,28 +35,14 @@ const SLIDES = [
     illustration: require("../../../assets/illustrations/onboard_1.png"),
     title: "Welcome to Smarty AI",
     subtitle:
-      "Your intelligent study companion. Upload any learning material and let AI create personalized quizzes just for you.",
+      "Your intelligent study companion. Let AI create personalized quizzes just for you.",
   },
   {
     key: "2",
-    illustration: require("../../../assets/illustrations/onboard_2.png"),
-    title: "Upload Your Learning\nMaterials",
-    subtitle:
-      "Simply upload your PDF or PowerPoint files. Smarty AI works with textbooks, lecture slides, notes, and study guides.",
-  },
-  {
-    key: "3",
     illustration: require("../../../assets/illustrations/onboard_3.png"),
     title: "AI-Powered Quiz Generation",
     subtitle:
-      "Google Gemini AI analyzes your documents and creates intelligent questions — multiple choice, true/false, and enumeration.",
-  },
-  {
-    key: "4",
-    illustration: require("../../../assets/illustrations/onboard_4.png"),
-    title: "Track Your Progress",
-    subtitle:
-      "Monitor your scores, earn achievements, and watch your learning improve over time. Study streaks keep you motivated!",
+      "Google Gemini AI analyzes your documents and creates intelligent questions — multiple choice, true/false, and fill in the blanks.",
   },
 ];
 
@@ -182,11 +168,13 @@ export default function MainOnboard1() {
         <Animated.View style={[styles.illustrationStrip, stripStyle]}>
           {SLIDES.map((s, i) => (
             <View key={s.key} style={styles.illustrationSlide}>
-              <Image
-                source={s.illustration}
-                resizeMode="contain"
-                style={styles.illustration}
-              />
+              <View style={styles.illustrationWrapper}>
+                <Image
+                  source={s.illustration}
+                  resizeMode="contain"
+                  style={styles.illustration}
+                />
+              </View>
             </View>
           ))}
         </Animated.View>
@@ -259,11 +247,11 @@ const styles = StyleSheet.create({
 
   // ── Header ──────────────────────────────────
   header: {
-    height: 68,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 24,
+    paddingBottom: 10,
     backgroundColor: "#FFFFFF",
     zIndex: 10,
   },
@@ -284,13 +272,17 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   skipBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 4,
+    height: 36,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    borderRadius: 8,
   },
   skipText: {
     fontSize: 15,
     fontWeight: "600",
     color: THEME.colors.primary,
+    lineHeight: 18,
   },
 
   // ── Illustration strip ───────────────────────
@@ -310,11 +302,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
   },
+  illustrationWrapper: {
+    width: Math.min(SCREEN_W - 48, 280),
+    height: 250,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
   illustration: {
-    width: "100%",
-    maxWidth: 320,
-    height: "100%",
-    maxHeight: 280,
+    width: 320,
+    height: 280,
+    transform: [{ scale: 1.1 }],
   },
 
   // ── Bottom ───────────────────────────────────

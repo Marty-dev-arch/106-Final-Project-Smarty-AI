@@ -95,8 +95,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           q,
           async (snapshot) => {
             if (snapshot.empty) {
-              // Seed initial welcoming notifications if collection is empty
-              await seedInitialNotifications(userId);
+              const seededKey = '@smarty_ai_notifs_seeded_' + userId;
+              const hasSeeded = await AsyncStorage.getItem(seededKey);
+              if (!hasSeeded) {
+                await AsyncStorage.setItem(seededKey, 'true');
+                await seedInitialNotifications(userId);
+              } else {
+                setNotifications([]);
+              }
             } else {
               const loaded: AppNotification[] = snapshot.docs.map((docSnap) => ({
                 id: docSnap.id,
@@ -129,15 +135,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const loadFromLocalStorage = async (uid: string) => {
     try {
       const stored = await AsyncStorage.getItem(LOCAL_NOTIFS_STORAGE_KEY + uid);
-      if (stored) {
+      if (stored !== null) {
         setNotifications(JSON.parse(stored));
       } else {
-        const initial = DEFAULT_WELCOME_NOTIFICATIONS.map((n, i) => ({
-          ...n,
-          id: `local_${Date.now()}_${i}`,
-        }));
-        setNotifications(initial);
-        await AsyncStorage.setItem(LOCAL_NOTIFS_STORAGE_KEY + uid, JSON.stringify(initial));
+        const seededKey = '@smarty_ai_notifs_seeded_' + uid;
+        const hasSeeded = await AsyncStorage.getItem(seededKey);
+        if (!hasSeeded) {
+          await AsyncStorage.setItem(seededKey, 'true');
+          const initial = DEFAULT_WELCOME_NOTIFICATIONS.map((n, i) => ({
+            ...n,
+            id: `local_${Date.now()}_${i}`,
+          }));
+          setNotifications(initial);
+          await AsyncStorage.setItem(LOCAL_NOTIFS_STORAGE_KEY + uid, JSON.stringify(initial));
+        } else {
+          setNotifications([]);
+        }
       }
     } catch (e) {
       console.warn('Failed to load local notifications:', e);
@@ -179,7 +192,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const markAllAsRead = async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    // Clear notifications list so the user sees the empty "All Caught Up" state
+    setNotifications([]);
+
+    if (userId) {
+      await AsyncStorage.setItem('@smarty_ai_notifs_seeded_' + userId, 'true');
+      await AsyncStorage.setItem(LOCAL_NOTIFS_STORAGE_KEY + userId, JSON.stringify([]));
+    }
 
     if (db && userId) {
       try {
@@ -187,13 +206,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const snapshot = await getDocs(notifsRef);
         const batch = writeBatch(db);
         snapshot.docs.forEach((docSnap) => {
-          if (!docSnap.data().read) {
-            batch.update(docSnap.ref, { read: true });
-          }
+          batch.delete(docSnap.ref);
         });
         await batch.commit();
       } catch (e) {
-        console.warn('Error batch marking notifications read:', e);
+        console.warn('Error clearing notifications on markAllAsRead:', e);
       }
     }
   };
@@ -220,18 +237,37 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       createdAt: Date.now(),
     };
 
+    // Sanitize payload to strip undefined fields (prevents Firestore rejection)
+    const sanitizedNotif: Record<string, any> = {};
+    Object.entries(newNotif).forEach(([k, v]) => {
+      if (v !== undefined) {
+        sanitizedNotif[k] = v;
+      }
+    });
+
     if (db && userId) {
       try {
         const notifsRef = collection(db, 'users', userId, 'notifications');
-        await addDoc(notifsRef, newNotif);
+        const docRef = await addDoc(notifsRef, sanitizedNotif);
+        const created: AppNotification = {
+          ...(sanitizedNotif as Omit<AppNotification, 'id'>),
+          id: docRef.id,
+        };
+        setNotifications((prev) => [created, ...prev.filter((n) => n.id !== docRef.id)]);
       } catch (e) {
-        console.warn('Error sending notification to Firestore:', e);
+        console.warn('Error sending notification to Firestore, saving locally:', e);
+        const localNotif: AppNotification = {
+          ...(sanitizedNotif as Omit<AppNotification, 'id'>),
+          id: `local_${Date.now()}`,
+        };
+        setNotifications((prev) => [localNotif, ...prev]);
       }
     } else {
-      setNotifications((prev) => [
-        { ...newNotif, id: `local_${Date.now()}` },
-        ...prev,
-      ]);
+      const localNotif: AppNotification = {
+        ...(sanitizedNotif as Omit<AppNotification, 'id'>),
+        id: `local_${Date.now()}`,
+      };
+      setNotifications((prev) => [localNotif, ...prev]);
     }
   };
 

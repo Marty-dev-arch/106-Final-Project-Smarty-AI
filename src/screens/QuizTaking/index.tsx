@@ -18,9 +18,11 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { RootStackParamList } from "../../types/navigation";
 import { useQuiz } from "../../context/QuizContext";
+import { useAuth } from "../../context/AuthContext";
 import TopBar from "../../components/common/TopBar";
 import ExportModal from "../../components/common/ExportModal";
 import { triggerHaptic } from "../../utils/haptics";
+import { playSound } from "../../utils/soundEffects";
 import THEME from "../../config/theme";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
@@ -46,6 +48,8 @@ export default function QuizTaking() {
     deleteQuestionFromQuiz,
   } = useQuiz();
 
+  const { user } = useAuth();
+  const soundHapticEnabled = user?.hapticFeedback !== false;
   const { updateActiveQuiz } = useQuiz();
   const [finishing, setFinishing] = useState(false);
   const [timeSpent, setTimeSpent] = useState(0);
@@ -546,14 +550,21 @@ export default function QuizTaking() {
           <>
             {/* Question Card */}
             <View style={styles.questionCard}>
-              <View style={styles.qBadge}>
-                <Text style={styles.qBadgeText}>Q{currentQuestionIndex + 1}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <View style={styles.qBadge}>
+                  <Text style={styles.qBadgeText}>Q{currentQuestionIndex + 1}</Text>
+                </View>
+                <View style={{ backgroundColor: "#F3E8FF", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: "#E9D5FF" }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#7E22CE" }}>
+                    {currentQ.type === "enumeration" ? "Fill in the blanks" : currentQ.type === "true_false" ? "True / False" : "Multiple Choice"}
+                  </Text>
+                </View>
               </View>
               <Text style={styles.questionTitle}>{currentQ.prompt}</Text>
             </View>
 
             {/* Options List */}
-            {currentQ.type === 'enumeration' ? (
+            {currentQ.type === "enumeration" ? (
               <View style={styles.optionsContainer}>
                 <TextInput
                   style={{
@@ -569,7 +580,17 @@ export default function QuizTaking() {
                   placeholder="Type your answer here..."
                   placeholderTextColor="#94A3B8"
                   value={selectedAnswer !== undefined ? String(selectedAnswer) : ""}
-                  onChangeText={(text) => selectAnswer(currentQ.id, text)}
+                  onChangeText={(text) => {
+                    selectAnswer(currentQ.id, text);
+                    const userText = text.trim().toLowerCase();
+                    const correctText = String(currentQ.correctAnswer).trim().toLowerCase();
+                    if (userText.length > 0 && correctText.length > 0 && userText === correctText) {
+                      if (soundHapticEnabled) {
+                        triggerHaptic.success();
+                        playSound.correct(true);
+                      }
+                    }
+                  }}
                   autoCapitalize="none"
                   returnKeyType={isLastQuestion ? "done" : "next"}
                   onSubmitEditing={handleNextOrFinish}
@@ -588,8 +609,21 @@ export default function QuizTaking() {
                         isSelected ? styles.optionCardSelected : styles.optionCardDefault,
                       ]}
                       onPress={() => {
-                        triggerHaptic.selection();
                         selectAnswer(currentQ.id, index);
+                        const isCorrect =
+                          currentQ.correctAnswer === index ||
+                          String(currentQ.correctAnswer).trim() === String(index).trim() ||
+                          String(currentQ.correctAnswer).trim().toLowerCase() === String(option).trim().toLowerCase();
+                        if (isCorrect) {
+                          if (soundHapticEnabled) {
+                            triggerHaptic.success();
+                            playSound.correct(true);
+                          }
+                        } else {
+                          if (soundHapticEnabled) {
+                            triggerHaptic.selection();
+                          }
+                        }
                       }}
                       activeOpacity={0.85}
                     >

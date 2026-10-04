@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   ScrollView,
+  Image,
   Text,
   TextInput,
   TouchableOpacity,
@@ -31,7 +32,6 @@ import { RootStackParamList } from '../../types/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { triggerHaptic } from '../../utils/haptics';
-import BlinkingMascot from '../../components/common/BlinkingMascot';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -265,51 +265,39 @@ export default function SignIn() {
             keyboardShouldPersistTaps="handled"
           >
             <Animated.View style={[styles.cardWrapper, animatedCardStyle]}>
-              {/* ─── Mascot & Brand Header ───────────────────────────────────── */}
+              {/* ─── Star Logo & Brand Header (Left Aligned - Image 4) ─── */}
               <View style={styles.heroHeader}>
-                <View style={styles.mascotHaloContainer}>
-                  <LinearGradient
-                    colors={['#6366F1', '#4F46E5', '#4338CA']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.mascotHaloGlow}
+                <View style={styles.logoSquircle}>
+                  <Image
+                    source={require('../../../assets/illustrations/smarty_logo.png')}
+                    style={styles.starLogoImage}
+                    resizeMode="contain"
                   />
-                  <View
-                    style={[
-                      styles.mascotPlate,
-                      {
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#FFFFFF',
-                        borderColor: isDark ? 'rgba(255,255,255,0.16)' : '#E2E8F0',
-                      },
-                    ]}
-                  >
-                    <BlinkingMascot size={64} style={styles.mascotAvatar} />
-                  </View>
                 </View>
 
                 <Text style={[styles.mainHeading, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>
-                  Welcome to Smarty
+                  Welcome back
                 </Text>
                 <Text style={[styles.subHeading, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                  Sign in to access your quizzes, progress, and streaks.
+                  Sign in to reach your quizzes and progress.
                 </Text>
               </View>
 
-              {/* ─── Minimalist Form Card ────────────────────────────────────── */}
+              {/* ─── Form Card ────────────────────────────────────────────── */}
               <View
                 style={[
                   styles.glassFormCard,
                   {
                     backgroundColor: isDark ? '#161F30' : '#FFFFFF',
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#F1F5F9',
                     shadowColor: isDark ? '#000000' : '#64748B',
                   },
                 ]}
               >
                 {/* Email Address Input */}
                 <View style={styles.inputGroup}>
-                  <Text style={[styles.fieldLabel, { color: isDark ? '#CBD5E1' : '#475569' }]}>
-                    EMAIL OR USERNAME
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#334155' }]}>
+                    Email Address
                   </Text>
                   <View
                     style={[
@@ -333,7 +321,7 @@ export default function SignIn() {
                     />
                     <TextInput
                       style={[styles.iosTextInput, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
-                      placeholder="name@example.com"
+                      placeholder="imu@email.com"
                       placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
                       value={email}
                       onChangeText={(t) => {
@@ -358,10 +346,26 @@ export default function SignIn() {
                 </View>
 
                 {/* Password Input */}
-                <View style={[styles.inputGroup, { marginTop: 14 }]}>
-                  <Text style={[styles.fieldLabel, { color: isDark ? '#CBD5E1' : '#475569' }]}>
-                    PASSWORD
-                  </Text>
+                <View style={[styles.inputGroup, { marginTop: 16 }]}>
+                  <View style={styles.fieldLabelRow}>
+                    <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#334155' }]}>
+                      Password
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        triggerHaptic.light();
+                        setResetEmail(email.trim());
+                        setResetSuccess(false);
+                        setResetError(null);
+                        setShowForgotModal(true);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.forgotLinkText, { color: isDark ? '#818CF8' : '#4F46E5' }]}>
+                        Forgot password?
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
 
                   <View
                     style={[
@@ -385,7 +389,7 @@ export default function SignIn() {
                     />
                     <TextInput
                       style={[styles.iosTextInput, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
-                      placeholder="••••••••••••"
+                      placeholder="••••••••"
                       placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
                       value={password}
                       onChangeText={(t) => {
@@ -405,29 +409,12 @@ export default function SignIn() {
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <Ionicons
-                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                        name={showPassword ? 'eye-outline' : 'eye-off-outline'}
                         size={20}
                         color={isDark ? '#94A3B8' : '#64748B'}
                       />
                     </TouchableOpacity>
                   </View>
-
-                  {/* ─── Forgot Password Link ───────────────────────────────── */}
-                  <TouchableOpacity
-                    onPress={() => {
-                      triggerHaptic.light();
-                      setResetEmail(email.trim());
-                      setResetSuccess(false);
-                      setResetError(null);
-                      setShowForgotModal(true);
-                    }}
-                    style={styles.forgotBtnBelow}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.forgotLinkText, { color: isDark ? '#818CF8' : '#4F46E5' }]}>
-                      Forgot password?
-                    </Text>
-                  </TouchableOpacity>
 
                   {/* ─── Error Notification Banner (Below Password) ───────── */}
                   {error && (
@@ -446,7 +433,7 @@ export default function SignIn() {
                   )}
                 </View>
 
-                {/* ─── Gradient Submit Button ──────────────────────────────── */}
+                {/* ─── Sign In Button ───────────────────────────────────────── */}
                 <TouchableOpacity
                   onPress={handleSignIn}
                   disabled={loading}
@@ -454,9 +441,9 @@ export default function SignIn() {
                   style={styles.submitBtnWrapper}
                 >
                   <LinearGradient
-                    colors={['#4F46E5', '#4338CA', '#3730A3']}
+                    colors={['#5844E8', '#4F46E5']}
                     start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+                    end={{ x: 1, y: 0 }}
                     style={styles.gradientSubmitBtn}
                   >
                     {loading ? (
@@ -465,12 +452,10 @@ export default function SignIn() {
                         <Text style={styles.submitBtnText}>Signing in...</Text>
                       </View>
                     ) : (
-                      <>
-                        <Text style={styles.submitBtnText}>Sign In</Text>
-                        <View style={styles.submitArrowCircle}>
-                          <Ionicons name="arrow-forward" size={15} color="#4F46E5" />
-                        </View>
-                      </>
+                      <View style={styles.submitBtnContentRow}>
+                        <Text style={styles.submitBtnText}>Sign in</Text>
+                        <Ionicons name="arrow-forward" size={17} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                      </View>
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
@@ -492,14 +477,6 @@ export default function SignIn() {
                     Sign up
                   </Text>
                 </TouchableOpacity>
-              </View>
-
-              {/* ─── Security Footer Note ───────────────────────────────────── */}
-              <View style={styles.footerNoteRow}>
-                <Ionicons name="shield-checkmark" size={14} color="#10B981" style={{ marginRight: 6 }} />
-                <Text style={[styles.footerNoteText, { color: isDark ? '#64748B' : '#94A3B8' }]}>
-                  Protected with Firebase 256-bit Cloud Security
-                </Text>
               </View>
             </Animated.View>
           </ScrollView>
@@ -705,54 +682,36 @@ const styles = StyleSheet.create({
   },
 
   // Hero Header & Mascot
+  // Hero Header & Star Logo (Left-aligned - Image 4)
   heroHeader: {
-    alignItems: 'center',
-    marginTop: 6,
-    marginBottom: 20,
+    width: '100%',
+    alignItems: 'flex-start',
+    marginTop: 10,
+    marginBottom: 24,
   },
-  mascotHaloContainer: {
-    width: 84,
-    height: 84,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    position: 'relative',
-  },
-  mascotHaloGlow: {
-    position: 'absolute',
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    opacity: 0.35,
-  },
-  mascotPlate: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    borderWidth: 1.5,
+  logoSquircle: {
+    width: 52,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4F46E5',
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    marginBottom: 16,
+    backgroundColor: 'transparent',
   },
-  mascotAvatar: {
-    marginTop: 0,
+  starLogoImage: {
+    width: 52,
+    height: 52,
   },
   mainHeading: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
     marginBottom: 6,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   subHeading: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 16,
+    fontSize: 14.5,
+    textAlign: 'left',
+    lineHeight: 21,
     fontWeight: '400',
   },
 
@@ -778,22 +737,26 @@ const styles = StyleSheet.create({
   // Minimalist Form Card
   glassFormCard: {
     width: '100%',
-    borderRadius: 24,
-    borderWidth: 1.5,
-    padding: 20,
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 18,
-    elevation: 4,
   },
   inputGroup: {
     width: '100%',
   },
   fieldLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: -0.1,
     marginBottom: 6,
+  },
+  fieldLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  submitBtnContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iosInputContainer: {
     flexDirection: 'row',

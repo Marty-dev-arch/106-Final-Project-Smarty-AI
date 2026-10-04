@@ -78,6 +78,24 @@ export const storageService = {
     await this.saveQuizzes(updated);
   },
 
+  async deleteQuiz(id: string): Promise<void> {
+    const list = await this.getQuizzes();
+    const updated = list.filter((q) => q.id !== id);
+    await this.saveQuizzes(updated);
+
+    // Cascade delete mistakes associated with this quiz
+    const mistakes = await this.getMistakes();
+    const updatedMistakes = mistakes.filter((m) => m.quizId !== id);
+    await this.saveMistakes(updatedMistakes);
+
+    // Cascade delete attempts associated with this quiz
+    const attempts = await this.getAttempts();
+    const updatedAttempts = attempts.filter((a) => a.quizId !== id);
+    try {
+      await AsyncStorage.setItem(KEYS.ATTEMPTS, JSON.stringify(updatedAttempts));
+    } catch {}
+  },
+
   // Attempts
   async getAttempts(): Promise<QuizAttempt[]> {
     try {
@@ -149,14 +167,13 @@ export const storageService = {
   // Gemini API Key
   async getGeminiApiKey(): Promise<string> {
     try {
-      // Env key is always the primary source (set in .env / Firebase Remote Config).
-      // Only fall back to an AsyncStorage key if the user has entered one manually
-      // via the Settings screen AND there is no env key.
-      const envKey = GEMINI_CONFIG.defaultApiKey?.trim();
-      if (envKey) return envKey;
+      const storedKey = (await AsyncStorage.getItem(KEYS.GEMINI_KEY))?.trim();
+      if (storedKey && storedKey.length >= 20 && !storedKey.includes('your_')) return storedKey;
 
-      const storedKey = await AsyncStorage.getItem(KEYS.GEMINI_KEY);
-      return storedKey?.trim() || '';
+      const envKey = GEMINI_CONFIG.defaultApiKey?.trim();
+      if (envKey && envKey.length >= 20 && !envKey.includes('your_')) return envKey;
+
+      return storedKey || envKey || '';
     } catch {
       return GEMINI_CONFIG.defaultApiKey || '';
     }

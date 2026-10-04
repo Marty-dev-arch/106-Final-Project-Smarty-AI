@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   ScrollView,
@@ -6,26 +6,32 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  Modal,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { RootStackParamList } from "../../types/navigation";
 import { useQuiz } from "../../context/QuizContext";
 import { useAuth } from "../../context/AuthContext";
+import { useNotifications } from "../../context/NotificationContext";
 import TopBar from "../../components/common/TopBar";
 import ExportModal from "../../components/common/ExportModal";
 import SmartyMascot from "../../components/common/SmartyMascot";
 import ConfettiCannon from "../../components/common/ConfettiCannon";
 import XPCounterRollup from "../../components/common/XPCounterRollup";
 import { triggerHaptic } from "../../utils/haptics";
+import { playSound } from "../../utils/soundEffects";
 import THEME from "../../config/theme";
 
 export default function Results() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { latestAttempt, activeQuiz } = useQuiz();
   const { user } = useAuth();
+  const { sendNotification } = useNotifications();
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showAchievementPopup, setShowAchievementPopup] = useState(false);
 
   const attempt = latestAttempt || {
     id: "att_1",
@@ -47,13 +53,66 @@ export default function Results() {
 
   const isCelebration = attempt.percentage >= 80;
 
+  const achievementEarned = useMemo(() => {
+    if (attempt.percentage >= 90) {
+      return {
+        type: "Ribbon",
+        title: "Gold Scholar Ribbon",
+        badgeIcon: "ribbon" as const,
+        colors: ["#F59E0B", "#D97706", "#B45309"],
+        tier: "GOLD TIER • LEVEL 5",
+        description: `Scored ${attempt.percentage}% on this quiz! Outstanding precision and subject mastery.`,
+        rewardXP: attempt.earnedXP || 250,
+      };
+    } else if (attempt.percentage >= 80) {
+      return {
+        type: "Badge",
+        title: "Precision Master Badge",
+        badgeIcon: "shield-checkmark" as const,
+        colors: ["#6366F1", "#4F46E5", "#4338CA"],
+        tier: "SILVER TIER • LEVEL 3",
+        description: `Scored ${attempt.percentage}% on this quiz! Excellent conceptual understanding.`,
+        rewardXP: attempt.earnedXP || 200,
+      };
+    } else if (attempt.percentage >= 60) {
+      return {
+        type: "Medal",
+        title: "Smarty Explorer Medal",
+        badgeIcon: "medal" as const,
+        colors: ["#10B981", "#059669", "#047857"],
+        tier: "BRONZE TIER • LEVEL 1",
+        description: `Successfully conquered this quiz with a ${attempt.percentage}% completion score!`,
+        rewardXP: attempt.earnedXP || 150,
+      };
+    }
+    return null;
+  }, [attempt.percentage, attempt.earnedXP]);
+
   useEffect(() => {
     if (isCelebration) {
       triggerHaptic.success();
     } else {
       triggerHaptic.medium();
     }
-  }, []);
+
+    if (achievementEarned) {
+      sendNotification({
+        title: `${achievementEarned.title} Unlocked! 🏆`,
+        message: achievementEarned.description,
+        type: "achievement",
+        actionScreen: "Achievements",
+      }).catch(() => {});
+
+      const timer = setTimeout(() => {
+        setShowAchievementPopup(true);
+        if (user?.hapticFeedback !== false) {
+          triggerHaptic.success();
+          playSound.reward(true);
+        }
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [isCelebration, achievementEarned, user?.hapticFeedback]);
 
   return (
     <View style={styles.container}>
@@ -197,6 +256,78 @@ export default function Results() {
           attempt={attempt}
         />
       )}
+
+      {/* ─── Achievement / Medal / Ribbon Celebration Popup Modal ─── */}
+      <Modal
+        visible={showAchievementPopup && achievementEarned !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAchievementPopup(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.achievementCard}>
+            <LinearGradient
+              colors={
+                achievementEarned?.colors
+                  ? (achievementEarned.colors as [string, string, ...string[]])
+                  : ["#4F46E5", "#6366F1"]
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.achievementHeaderGradient}
+            >
+              <View style={styles.medalCircle}>
+                <Ionicons name={achievementEarned?.badgeIcon || "ribbon"} size={44} color="#FFFFFF" />
+              </View>
+              <View style={styles.congratsPill}>
+                <Ionicons name="sparkles" size={13} color="#FBBF24" style={{ marginRight: 5 }} />
+                <Text style={styles.congratsPillText}>NEW ACHIEVEMENT UNLOCKED!</Text>
+              </View>
+            </LinearGradient>
+
+            <View style={styles.achievementBody}>
+              <Text style={styles.achievementTierText}>{achievementEarned?.tier}</Text>
+              <Text style={styles.achievementTitle}>{achievementEarned?.title}</Text>
+              <Text style={styles.achievementDesc}>{achievementEarned?.description}</Text>
+
+              <View style={styles.xpRewardBox}>
+                <Ionicons name="sparkles" size={16} color="#4F46E5" style={{ marginRight: 6 }} />
+                <Text style={styles.xpRewardText}>+{achievementEarned?.rewardXP} XP Earned</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.claimButton}
+                onPress={() => {
+                  triggerHaptic.selection();
+                  setShowAchievementPopup(false);
+                }}
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={["#4F46E5", "#6366F1"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.claimButtonGradient}
+                >
+                  <Text style={styles.claimButtonText}>Claim & Continue</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.viewAllBadgesBtn}
+                onPress={() => {
+                  setShowAchievementPopup(false);
+                  navigation.navigate("Achievements");
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewAllBadgesText}>View Trophy Case</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -473,5 +604,123 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: THEME.colors.primary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(17, 24, 39, 0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  achievementCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    overflow: "hidden",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  achievementHeaderGradient: {
+    width: "100%",
+    paddingVertical: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  medalCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.4)",
+    marginBottom: 12,
+  },
+  congratsPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.25)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  congratsPillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.8,
+  },
+  achievementBody: {
+    width: "100%",
+    paddingHorizontal: 22,
+    paddingVertical: 20,
+    alignItems: "center",
+  },
+  achievementTierText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#6D44F2",
+    letterSpacing: 0.6,
+    marginBottom: 4,
+  },
+  achievementTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  achievementDesc: {
+    fontSize: 13,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  xpRewardBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginBottom: 18,
+  },
+  xpRewardText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#4F46E5",
+  },
+  claimButton: {
+    width: "100%",
+    height: 48,
+    borderRadius: 24,
+    overflow: "hidden",
+    marginBottom: 10,
+  },
+  claimButtonGradient: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  claimButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  viewAllBadgesBtn: {
+    paddingVertical: 6,
+  },
+  viewAllBadgesText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6B7280",
   },
 });

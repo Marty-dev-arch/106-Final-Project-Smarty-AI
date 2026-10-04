@@ -37,9 +37,11 @@ interface QuizContextType {
     timeLimitMinutes?: number;
     sourceDocName?: string;
     sourceDocUrl?: string;
+    pdfBase64?: string;
   }) => Promise<Quiz>;
   startMistakePractice: (topicFilter?: string) => Quiz | null;
   clearMistake: (id: string) => Promise<void>;
+  deleteQuiz: (quizId: string) => Promise<void>;
   refreshData: () => Promise<void>;
   deleteAllQuizzesAndFiles: () => Promise<void>;
 }
@@ -196,6 +198,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     timeLimitMinutes?: number;
     sourceDocName?: string;
     sourceDocUrl?: string;
+    pdfBase64?: string;
   }): Promise<Quiz> => {
     setIsLoading(true);
     try {
@@ -338,6 +341,20 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const deleteQuiz = async (quizId: string) => {
+    try {
+      await quizService.deleteQuiz(quizId);
+      setQuizzes((prev) => prev.filter((q) => q.id !== quizId));
+      setMistakes((prev) => prev.filter((m) => m.quizId !== quizId));
+      setAttempts((prev) => prev.filter((a) => a.quizId !== quizId));
+      if (activeQuiz?.id === quizId) {
+        setActiveQuiz(null);
+      }
+    } catch (e) {
+      console.warn('Error deleting quiz:', e);
+    }
+  };
+
   const clearMistake = async (id: string) => {
     setMistakes((prev) => prev.filter((m) => m.id !== id));
     await quizService.clearMistake(id);
@@ -368,6 +385,7 @@ export const QuizProvider: React.FC<{ children: React.ReactNode }> = ({ children
         generateQuizWithAI,
         startMistakePractice,
         clearMistake,
+        deleteQuiz,
         refreshData,
         deleteAllQuizzesAndFiles,
       }}
